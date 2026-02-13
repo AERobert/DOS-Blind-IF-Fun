@@ -18,7 +18,8 @@ function saveSettings() {
             promptDepth: promptDepthSelect.value,
             diskType: diskTypeSelect.value,
             autorun: autorunInput.value,
-            singleKey: singleKeyToggle.checked
+            singleKey: singleKeyToggle.checked,
+            useWorkspace: workspaceToggle ? workspaceToggle.checked : false
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
     } catch(e) { /* storage unavailable, ignore */ }
@@ -40,6 +41,7 @@ function loadSettings() {
         if (s.diskType) diskTypeSelect.value = s.diskType;
         if (s.autorun !== undefined) autorunInput.value = s.autorun;
         if (s.singleKey !== undefined) singleKeyToggle.checked = s.singleKey;
+        if (s.useWorkspace !== undefined && workspaceToggle) workspaceToggle.checked = s.useWorkspace;
         /* Voice is restored after voices load — store URI for later */
         if (s.voiceURI) voiceSelect.dataset.savedVoice = s.voiceURI;
     } catch(e) {}

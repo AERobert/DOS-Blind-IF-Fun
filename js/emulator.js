@@ -4,15 +4,18 @@
  * Emulator
  * ═══════════════════════════════════════════ */
 
-function bootEmulator(autoLaunch) {
+async function bootEmulator(autoLaunch) {
     if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
         setStatus("error", "v86 not loaded. Serve via HTTP (use start.command).");
         return;
     }
 
+    /* Check if workspace mode is active */
+    const useWorkspace = workspaceToggle && workspaceToggle.checked && workspaceAvailable;
+
     /* Determine which disk image to use */
     const selectedImg = gameSelect.value;
-    if (!selectedImg && !customFloppyBlob) {
+    if (!useWorkspace && !selectedImg && !customFloppyBlob) {
         setStatus("error", "No game disk image selected.");
         return;
     }
@@ -22,10 +25,26 @@ function bootEmulator(autoLaunch) {
     initBuffer(); initScreenDOM();
 
     /* Build disk config based on disk type (floppy -> fdb, hard disk -> hda) */
-    const isHDD = diskTypeSelect.value === "hdd";
-    const diskConfig = customFloppyBlob
-        ? { buffer: customFloppyBlob }
-        : { url: selectedImg };
+    let isHDD = diskTypeSelect.value === "hdd";
+    let diskConfig;
+
+    if (useWorkspace) {
+        /* Fetch the workspace disk image from the server */
+        isHDD = true; /* workspace is always an HDD */
+        try {
+            setStatus("loading", "Building workspace disk image...");
+            const wsDisk = await fetchWorkspaceDisk();
+            diskConfig = { buffer: wsDisk };
+        } catch (err) {
+            setStatus("error", "Workspace disk error: " + err.message);
+            bootBtn.disabled = false; bootPromptBtn.disabled = false;
+            return;
+        }
+    } else {
+        diskConfig = customFloppyBlob
+            ? { buffer: customFloppyBlob }
+            : { url: selectedImg };
+    }
 
     const emulatorConfig = {
         wasm_path: "v86.wasm",
@@ -104,6 +123,10 @@ function bootEmulator(autoLaunch) {
 
             enableInput();
 
+            /* Enable workspace sync button now that emulator is running */
+            const wsSyncBtn = $("ws-sync-btn");
+            if (wsSyncBtn && useWorkspace) wsSyncBtn.disabled = false;
+
             /* Try to redirect LPT1 -> COM1 so SCRIPT command output gets captured */
             setTimeout(async () => {
                 await typeToDOS("MODE LPT1:=COM1:", true);
@@ -112,7 +135,7 @@ function bootEmulator(autoLaunch) {
                     const autoCmd = autorunInput.value.trim();
                     if (autoCmd) {
                         /* Floppy games are on B:, hard disk games are on C: */
-                        const gameDrive = diskTypeSelect.value === "hdd" ? "C:" : "B:";
+                        const gameDrive = (isHDD || useWorkspace) ? "C:" : "B:";
 
                         /*
                          * If this game uses graphics mode, load TEXTCAP.COM first.
@@ -132,12 +155,14 @@ function bootEmulator(autoLaunch) {
                         await typeToDOS(autoCmd, true);
                         setStatus("ready", "Game launched! Type commands below.");
                     } else {
-                        const driveHint = diskTypeSelect.value === "hdd" ? "C:" : "B:";
-                        setStatus("ready", "DOS booted. Game disk on " + driveHint + " drive.");
+                        const driveHint = (isHDD || useWorkspace) ? "C:" : "B:";
+                        const label = useWorkspace ? "Workspace" : "Game disk";
+                        setStatus("ready", "DOS booted. " + label + " on " + driveHint + " drive.");
                     }
                 } else {
-                    const driveHint = diskTypeSelect.value === "hdd" ? "C:" : "B:";
-                    setStatus("ready", "DOS booted. Game disk on " + driveHint + " drive. Type " + driveHint + " then DIR to browse.");
+                    const driveHint = (isHDD || useWorkspace) ? "C:" : "B:";
+                    const label = useWorkspace ? "Workspace" : "Game disk";
+                    setStatus("ready", "DOS booted. " + label + " on " + driveHint + " drive. Type " + driveHint + " then DIR to browse.");
                 }
             }, 500);
         }
