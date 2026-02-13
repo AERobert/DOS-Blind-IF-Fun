@@ -116,3 +116,4 @@ const transcriptFlushD3=$("transcript-flush-d3");
 const transcriptFlushTotal=$("transcript-flush-total");
 const transcriptTestReadBtn=$("transcript-test-read-btn");
 const transcriptSpeakLastBtn=$("transcript-speak-last-btn");
+const workspaceToggle=$("workspace-toggle");
