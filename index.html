@@ -57,11 +57,12 @@
 
     <!-- Server Workspace -->
     <details class="cpanel" id="section-workspace" style="display:none;">
-        <summary><h2>Server Workspace (C: Drive)</h2></summary>
+        <summary><h2>Server Workspace (C: Drive)</h2> <span id="ws-sync-indicator" style="font-size:0.8rem;font-weight:normal;color:var(--accent);margin-left:0.5rem;"></span></summary>
         <div class="cpanel-body" id="workspace-panel">
         <p style="margin:0 0 0.5rem;font-size:0.9rem;color:var(--text-secondary);">
-            Files stored on the server. When you boot, these become the C: drive.
-            Upload game files here, or import them from a .img disk image.
+            Files stored on the server in <code>workspace/files/</code>. These become the C: drive when you boot.
+            <strong>Live sync</strong>: files written by DOS appear on the server within seconds, and files
+            you add to the server directory appear in DOS automatically.
         </p>
         <div class="panel-row" style="gap:0.4rem;">
             <button id="ws-upload-btn" class="btn-primary btn-sm">Upload Files</button>
@@ -70,7 +71,7 @@
             <button id="ws-import-custom-btn" class="btn-secondary btn-sm" title="Extract files from a custom .img file">Import Custom .img</button>
             <input type="file" id="ws-import-custom-input" style="display:none" accept=".img,.ima,.bin">
             <button id="ws-refresh-btn" class="btn-secondary btn-sm">Refresh</button>
-            <button id="ws-sync-btn" class="btn-secondary btn-sm" disabled title="Write emulator disk changes back to server workspace">Sync from Emulator</button>
+            <button id="ws-sync-btn" class="btn-secondary btn-sm" disabled title="Force an immediate sync of the emulator disk to the server">Sync Now</button>
             <button id="ws-clear-btn" class="btn-danger btn-sm">Clear All</button>
         </div>
         <div id="ws-status" style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem;">Workspace is empty.</div>
@@ -358,7 +359,7 @@
         <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
         <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
         <p>To add a new game: place its .img file in the same folder as this HTML file, then add an entry to the KNOWN_GAMES object in the source. Set disk type to "floppy" for 1.44MB FAT12 images (B: drive) or "hdd" for larger FAT16 images (C: drive). Or use "Load Custom .img" to load any disk image at runtime.</p>
-        <p><strong>Server workspace</strong>: when running the Node.js server (<code>node server.js</code>), check "Use server workspace" in Setup. This creates a virtual C: drive from files stored in the <code>workspace/files/</code> directory on the server. Upload game files directly (EXE, DAT, BAT, etc.) without creating disk images. You can also import files from existing .img game images. After playing, click "Sync from Emulator" to save any changes (e.g., save games) back to the server workspace. The workspace persists between sessions. This feature requires the Node.js server — it is not available when using the Python fallback.</p>
+        <p><strong>Server workspace (live sync)</strong>: when running the Node.js server (<code>node server.js</code>), check "Use server workspace" in Setup. This creates a virtual C: drive from files stored in the <code>workspace/files/</code> directory on the server. <strong>Live bidirectional sync</strong> keeps the emulator disk and server directory in lockstep: files written by DOS (transcripts, save games, etc.) appear on the server within seconds, and files you add to <code>workspace/files/</code> from outside (your file manager, terminal, etc.) are automatically pulled into the running emulator. Upload game files directly (EXE, DAT, BAT, etc.) without creating disk images. You can also import from existing .img files. This feature requires the Node.js server.</p>
     </details>
 </div>
 

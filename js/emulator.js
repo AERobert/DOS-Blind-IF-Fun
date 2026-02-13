@@ -123,9 +123,8 @@ async function bootEmulator(autoLaunch) {
 
             enableInput();
 
-            /* Enable workspace sync button now that emulator is running */
-            const wsSyncBtn = $("ws-sync-btn");
-            if (wsSyncBtn && useWorkspace) wsSyncBtn.disabled = false;
+            /* Start live sync if workspace mode is active */
+            if (useWorkspace) startLiveSync();
 
             /* Try to redirect LPT1 -> COM1 so SCRIPT command output gets captured */
             setTimeout(async () => {

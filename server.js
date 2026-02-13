@@ -295,6 +295,163 @@ app.get("/api/workspace/status", (req, res) => {
     });
 });
 
+/* ═══════════════════════════════════════════════════════
+ * Live Sync API — bidirectional file sync between
+ * the v86 emulator disk and workspace/files/
+ * ═══════════════════════════════════════════════════════ */
+
+/* Track the last-known state of workspace files for change detection */
+let lastKnownFileState = {};   /* { filename: { size, mtimeMs } } */
+let lastSyncTimestamp = 0;
+
+function snapshotFileState() {
+    const state = {};
+    try {
+        if (!fs.existsSync(WORKSPACE_FILES)) return state;
+        for (const name of fs.readdirSync(WORKSPACE_FILES)) {
+            try {
+                const stat = fs.statSync(path.join(WORKSPACE_FILES, name));
+                if (stat.isFile()) {
+                    state[name] = { size: stat.size, mtimeMs: stat.mtimeMs };
+                }
+            } catch (e) {}
+        }
+    } catch (e) {}
+    return state;
+}
+
+/* Take initial snapshot */
+lastKnownFileState = snapshotFileState();
+lastSyncTimestamp = Date.now();
+
+/**
+ * POST /api/workspace/live-sync
+ * Receive the full disk image from the browser, extract ALL files
+ * (including open ones with size=0), and save to workspace/files/.
+ * Also saves the raw disk image for debugging.
+ * Returns the list of files that changed.
+ */
+app.post("/api/workspace/live-sync", upload.single("image"), (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ error: "No image data" });
+        }
+
+        const imgData = fs.readFileSync(req.file.path);
+        fs.unlinkSync(req.file.path);
+
+        /* Save the raw disk image for direct access */
+        const diskImgPath = path.join(WORKSPACE_DIR, "disk.img");
+        fs.writeFileSync(diskImgPath, imgData);
+
+        /* Extract all files (handles open files via cluster-chain following) */
+        fs.mkdirSync(WORKSPACE_FILES, { recursive: true });
+        const extracted = fat.extractFilesFromImage(imgData);
+        const changed = [];
+
+        /* Write extracted files, tracking what actually changed */
+        for (const f of extracted) {
+            const filePath = path.join(WORKSPACE_FILES, f.name);
+            let needWrite = true;
+            try {
+                if (fs.existsSync(filePath)) {
+                    const existing = fs.readFileSync(filePath);
+                    if (existing.length === f.data.length && existing.equals(f.data)) {
+                        needWrite = false;
+                    }
+                }
+            } catch (e) {}
+
+            if (needWrite) {
+                fs.writeFileSync(filePath, f.data);
+                changed.push(f.name);
+            }
+        }
+
+        /* Remove files that no longer exist in the image */
+        const extractedNames = new Set(extracted.map(f => f.name));
+        try {
+            for (const name of fs.readdirSync(WORKSPACE_FILES)) {
+                if (!extractedNames.has(name)) {
+                    try { fs.unlinkSync(path.join(WORKSPACE_FILES, name)); } catch (e) {}
+                    changed.push("-" + name);
+                }
+            }
+        } catch (e) {}
+
+        /* Update snapshot */
+        lastKnownFileState = snapshotFileState();
+        lastSyncTimestamp = Date.now();
+
+        res.json({ total: extracted.length, changed });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * GET /api/workspace/changes
+ * Check if any files in workspace/files/ have been modified externally
+ * (e.g. by the user editing them directly on the filesystem).
+ * Returns the list of changed/new/deleted files since last sync.
+ */
+app.get("/api/workspace/changes", (req, res) => {
+    try {
+        const current = snapshotFileState();
+        const changes = [];
+
+        /* Check for new or modified files */
+        for (const [name, info] of Object.entries(current)) {
+            const prev = lastKnownFileState[name];
+            if (!prev) {
+                changes.push({ name, type: "added" });
+            } else if (prev.size !== info.size || prev.mtimeMs !== info.mtimeMs) {
+                changes.push({ name, type: "modified" });
+            }
+        }
+
+        /* Check for deleted files */
+        for (const name of Object.keys(lastKnownFileState)) {
+            if (!current[name]) {
+                changes.push({ name, type: "deleted" });
+            }
+        }
+
+        res.json({
+            hasChanges: changes.length > 0,
+            changes,
+            lastSync: lastSyncTimestamp,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
+/**
+ * POST /api/workspace/pull
+ * Acknowledge external changes and rebuild the disk image.
+ * The browser calls this when it wants to pull server-side changes
+ * into the emulator.
+ * Returns the new disk image as binary.
+ */
+app.post("/api/workspace/pull", (req, res) => {
+    try {
+        /* Update our snapshot so we stop reporting these as changes */
+        lastKnownFileState = snapshotFileState();
+        lastSyncTimestamp = Date.now();
+
+        /* Build a fresh image from the workspace files */
+        let sizeMB = 32;
+        const img = fat.buildImageFromDirectory(WORKSPACE_FILES, sizeMB);
+
+        res.setHeader("Content-Type", "application/octet-stream");
+        res.setHeader("Content-Length", img.length);
+        res.send(img);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 /* ── Start server ── */
 app.listen(PORT, () => {
     console.log("=============================================");

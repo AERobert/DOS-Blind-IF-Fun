@@ -56,6 +56,9 @@ function sendCommand(text) {
         if (transcriptAutoFlushToggle.checked && !autoFlushPending) {
             scheduleAutoFlush();
         }
+
+        /* Workspace live sync: push disk to server shortly after command */
+        schedulePostCommandSync();
     }
 }
 

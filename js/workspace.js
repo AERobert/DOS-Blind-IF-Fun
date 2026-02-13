@@ -1,19 +1,34 @@
 "use strict";
 
 /* ═══════════════════════════════════════════
- * Server Workspace — Client-side management
+ * Server Workspace — Live bidirectional sync
  * ═══════════════════════════════════════════
  *
- * When "Use server workspace" is checked, the game disk is a FAT16 HDD
- * image built on-the-fly by the Node.js server from files stored in
- * the workspace/ directory.  The user manages files through a dedicated
- * panel and can upload, delete, import from game images, and sync
- * changes back to the server after playing.
+ * When "Use server workspace" is checked:
+ *
+ *  1. Boot builds a FAT16 HDD from workspace/files/ on the server.
+ *  2. Emulator → Server: every few seconds (and after each command),
+ *     the browser fingerprints the FAT table + root directory.  If
+ *     anything changed it pushes the full disk image to the server,
+ *     which extracts individual files to workspace/files/.
+ *  3. Server → Emulator: the browser polls for external changes
+ *     (user editing files on disk).  When detected it pulls a fresh
+ *     disk image and hot-swaps it into v86.
+ *
+ * The result: workspace/files/ on the server always mirrors the
+ * emulator's C: drive, and vice versa.
  */
 
 /* ── State ── */
-let workspaceAvailable = false;    /* true if the server supports workspace API */
-let workspaceDiskBlob = null;      /* ArrayBuffer of the workspace disk.img for v86 */
+let workspaceAvailable = false;
+let workspaceDiskBlob  = null;   /* ArrayBuffer loaded at boot */
+
+/* Live-sync state */
+let wsSyncTimer        = null;   /* setInterval handle */
+let wsPollTimer        = null;   /* server-change polling handle */
+let wsLastFingerprint  = null;   /* hash of FAT + root-dir sectors */
+let wsSyncing          = false;  /* guard against concurrent syncs */
+let wsCommandSyncTimer = null;   /* debounced post-command sync */
 
 /* ── Detect server workspace support on page load ── */
 async function detectWorkspace() {
@@ -27,31 +42,28 @@ async function detectWorkspace() {
         workspaceAvailable = false;
     }
 
-    /* Show or hide the workspace option depending on server support */
     const wsOption = $("workspace-option");
-    if (wsOption) {
-        wsOption.style.display = workspaceAvailable ? "" : "none";
-    }
+    if (wsOption) wsOption.style.display = workspaceAvailable ? "" : "none";
 
-    /* If workspace was previously enabled, refresh file list */
     if (workspaceAvailable && workspaceToggle && workspaceToggle.checked) {
         updateWorkspaceUI();
         refreshWorkspaceFiles();
     }
 }
 
-/* ── Toggle workspace mode ── */
+/* ═══════════════════════════════════════════
+ * UI Toggle
+ * ═══════════════════════════════════════════ */
+
 function updateWorkspaceUI() {
     const enabled = workspaceToggle && workspaceToggle.checked;
     const wsSection = $("section-workspace");
 
-    /* Show/hide the entire workspace details panel */
     if (wsSection) {
         wsSection.style.display = enabled ? "" : "none";
         if (enabled) wsSection.open = true;
     }
 
-    /* When workspace is active, force disk type to HDD and disable game select */
     if (enabled) {
         diskTypeSelect.value = "hdd";
         diskTypeSelect.disabled = true;
@@ -62,10 +74,14 @@ function updateWorkspaceUI() {
         gameSelect.disabled = false;
         loadCustomImgBtn.disabled = false;
         workspaceDiskBlob = null;
+        stopLiveSync();
     }
 }
 
-/* ── Refresh workspace file list ── */
+/* ═══════════════════════════════════════════
+ * Workspace file list (management panel)
+ * ═══════════════════════════════════════════ */
+
 async function refreshWorkspaceFiles() {
     const tbody = $("ws-tbody");
     const status = $("ws-status");
@@ -134,38 +150,32 @@ async function refreshWorkspaceFiles() {
     }
 }
 
-/* ── Upload files to workspace ── */
+/* ═══════════════════════════════════════════
+ * Upload / Import / Clear (pre-boot management)
+ * ═══════════════════════════════════════════ */
+
 async function uploadWorkspaceFiles(fileList) {
     const status = $("ws-status");
     if (!fileList || fileList.length === 0) return;
-
     if (status) status.textContent = "Uploading " + fileList.length + " file(s)...";
 
     const formData = new FormData();
-    for (const f of fileList) {
-        formData.append("files", f);
-    }
+    for (const f of fileList) formData.append("files", f);
 
     try {
-        const resp = await fetch("/api/workspace/upload", {
-            method: "POST",
-            body: formData,
-        });
+        const resp = await fetch("/api/workspace/upload", { method: "POST", body: formData });
         if (!resp.ok) throw new Error("Upload failed: " + resp.status);
         const data = await resp.json();
         if (status) status.textContent = "Uploaded " + data.uploaded.length + " file(s).";
     } catch (err) {
         if (status) status.textContent = "Upload error: " + err.message;
     }
-
     refreshWorkspaceFiles();
 }
 
-/* ── Import a game .img into workspace ── */
 async function importGameToWorkspace(filename) {
     const status = $("ws-status");
     if (status) status.textContent = "Importing files from " + filename + "...";
-
     try {
         const resp = await fetch("/api/workspace/import-server-img", {
             method: "POST",
@@ -178,37 +188,27 @@ async function importGameToWorkspace(filename) {
     } catch (err) {
         if (status) status.textContent = "Import error: " + err.message;
     }
-
     refreshWorkspaceFiles();
 }
 
-/* ── Import a custom uploaded .img into workspace ── */
 async function importCustomImgToWorkspace(file) {
     const status = $("ws-status");
     if (status) status.textContent = "Importing files from " + file.name + "...";
-
     const formData = new FormData();
     formData.append("image", file);
-
     try {
-        const resp = await fetch("/api/workspace/import", {
-            method: "POST",
-            body: formData,
-        });
+        const resp = await fetch("/api/workspace/import", { method: "POST", body: formData });
         if (!resp.ok) throw new Error("Import failed: " + resp.status);
         const data = await resp.json();
         if (status) status.textContent = "Imported " + data.imported + " file(s) from " + file.name + ".";
     } catch (err) {
         if (status) status.textContent = "Import error: " + err.message;
     }
-
     refreshWorkspaceFiles();
 }
 
-/* ── Clear workspace ── */
 async function clearWorkspace() {
     if (!confirm("Delete ALL files from the workspace?")) return;
-
     const status = $("ws-status");
     try {
         await fetch("/api/workspace/clear", { method: "DELETE" });
@@ -216,11 +216,13 @@ async function clearWorkspace() {
     } catch (err) {
         if (status) status.textContent = "Error: " + err.message;
     }
-
     refreshWorkspaceFiles();
 }
 
-/* ── Fetch workspace disk image for v86 boot ── */
+/* ═══════════════════════════════════════════
+ * Boot: fetch workspace disk image
+ * ═══════════════════════════════════════════ */
+
 async function fetchWorkspaceDisk() {
     const resp = await fetch("/api/workspace/disk.img");
     if (!resp.ok) throw new Error("Failed to build workspace disk: " + resp.status);
@@ -228,39 +230,193 @@ async function fetchWorkspaceDisk() {
     return workspaceDiskBlob;
 }
 
-/* ── Sync current v86 disk image back to server workspace ── */
-async function syncDiskToWorkspace() {
-    if (!emulator) return;
+/* ═══════════════════════════════════════════
+ * LIVE SYNC: Emulator → Server
+ * ═══════════════════════════════════════════
+ *
+ * Every few seconds (and shortly after each command) we fingerprint
+ * the FAT table and root directory of the v86 disk.  If the
+ * fingerprint changed we push the full disk image to the server.
+ *
+ * On localhost 32 MB transfers in ~100 ms so this is fine.
+ */
 
-    const status = $("ws-status");
-    if (status) status.textContent = "Syncing disk back to workspace...";
+/** Compute a fast hash of the FAT + root directory sectors. */
+function diskFingerprint() {
+    const disk = getDiskBytes();
+    if (!disk) return null;
+    const geo = parseFATGeometry(disk);
+    if (!geo) return null;
+
+    let h = 0x811c9dc5; /* FNV-1a offset basis */
+    const fatEnd = geo.fatStart + geo.sectorsPerFAT * geo.bytesPerSector;
+    for (let i = geo.fatStart; i < fatEnd; i++) {
+        h ^= disk[i]; h = Math.imul(h, 0x01000193);
+    }
+    const rdEnd = geo.rootDirStart + geo.rootDirEntries * 32;
+    for (let i = geo.rootDirStart; i < rdEnd; i++) {
+        h ^= disk[i]; h = Math.imul(h, 0x01000193);
+    }
+    return h;
+}
+
+/** Push the current v86 disk to the server for extraction. */
+async function pushDiskToServer() {
+    if (wsSyncing) return;
+    wsSyncing = true;
+
+    const syncInd = $("ws-sync-indicator");
+    if (syncInd) syncInd.textContent = "syncing...";
 
     try {
-        /* Get current disk image from v86 */
         const diskBytes = getDiskBytes();
-        if (!diskBytes) throw new Error("Could not read disk from emulator");
+        if (!diskBytes) return;
 
         const formData = new FormData();
-        const blob = new Blob([diskBytes], { type: "application/octet-stream" });
-        formData.append("image", blob, "disk.img");
+        formData.append("image", new Blob([diskBytes], { type: "application/octet-stream" }), "disk.img");
 
-        const resp = await fetch("/api/workspace/sync", {
-            method: "POST",
-            body: formData,
-        });
-        if (!resp.ok) throw new Error("Sync failed: " + resp.status);
+        const resp = await fetch("/api/workspace/live-sync", { method: "POST", body: formData });
+        if (!resp.ok) throw new Error(resp.status);
         const data = await resp.json();
-        if (status) status.textContent = "Synced " + data.synced + " file(s) back to workspace.";
-    } catch (err) {
-        if (status) status.textContent = "Sync error: " + err.message;
-    }
 
+        wsLastFingerprint = diskFingerprint();
+
+        if (syncInd) {
+            if (data.changed && data.changed.length > 0) {
+                syncInd.textContent = "synced " + data.changed.length + " file(s) just now";
+            } else {
+                syncInd.textContent = "in sync";
+            }
+        }
+
+        /* Refresh file list if panel is open */
+        const wsSection = $("section-workspace");
+        if (wsSection && wsSection.open) refreshWorkspaceFiles();
+
+    } catch (err) {
+        if (syncInd) syncInd.textContent = "sync error: " + err.message;
+    } finally {
+        wsSyncing = false;
+    }
+}
+
+/** Periodic sync tick: fingerprint and push if changed. */
+function syncTick() {
+    if (!emulator || !isReady) return;
+    if (wsSyncing) return;
+
+    const fp = diskFingerprint();
+    if (fp !== null && fp !== wsLastFingerprint) {
+        pushDiskToServer();
+    }
+}
+
+/**
+ * Schedule a sync shortly after a command is sent to DOS.
+ * This gives DOS time to write files before we read the disk.
+ */
+function schedulePostCommandSync() {
+    if (!workspaceToggle || !workspaceToggle.checked || !workspaceAvailable) return;
+    if (wsCommandSyncTimer) clearTimeout(wsCommandSyncTimer);
+    wsCommandSyncTimer = setTimeout(() => {
+        wsCommandSyncTimer = null;
+        pushDiskToServer();
+    }, 2000);
+}
+
+/* ═══════════════════════════════════════════
+ * LIVE SYNC: Server → Emulator
+ * ═══════════════════════════════════════════
+ *
+ * Poll the server for external file changes.  When detected, pull
+ * a fresh disk image and hot-swap it into v86.
+ */
+
+async function pollServerChanges() {
+    if (!emulator || !isReady) return;
+    if (wsSyncing) return;
+
+    try {
+        const resp = await fetch("/api/workspace/changes");
+        if (!resp.ok) return;
+        const data = await resp.json();
+
+        if (!data.hasChanges) return;
+
+        const syncInd = $("ws-sync-indicator");
+        const names = data.changes.map(c => c.name).join(", ");
+
+        /* Auto-pull: get the rebuilt disk image and swap it in */
+        if (syncInd) syncInd.textContent = "pulling server changes...";
+
+        const pullResp = await fetch("/api/workspace/pull", { method: "POST" });
+        if (!pullResp.ok) return;
+
+        const newImg = new Uint8Array(await pullResp.arrayBuffer());
+        const ok = await replaceDiskImage(newImg);
+
+        if (ok) {
+            wsLastFingerprint = diskFingerprint();
+            if (syncInd) syncInd.textContent = "pulled: " + names;
+            const wsSection = $("section-workspace");
+            if (wsSection && wsSection.open) refreshWorkspaceFiles();
+        } else {
+            if (syncInd) syncInd.textContent = "pull failed (disk busy?)";
+        }
+    } catch (err) {
+        /* Silently ignore polling errors */
+    }
+}
+
+/* ═══════════════════════════════════════════
+ * Start / Stop live sync
+ * ═══════════════════════════════════════════ */
+
+function startLiveSync() {
+    stopLiveSync();
+
+    /* Take initial fingerprint */
+    wsLastFingerprint = diskFingerprint();
+
+    /* Emulator → Server: check every 3 seconds */
+    wsSyncTimer = setInterval(syncTick, 3000);
+
+    /* Server → Emulator: poll every 4 seconds (offset from sync) */
+    wsPollTimer = setInterval(pollServerChanges, 4000);
+
+    /* Do an initial push so the server has the boot state */
+    setTimeout(() => pushDiskToServer(), 1500);
+
+    const syncInd = $("ws-sync-indicator");
+    if (syncInd) syncInd.textContent = "live sync active";
+
+    const wsSyncBtn = $("ws-sync-btn");
+    if (wsSyncBtn) wsSyncBtn.disabled = false;
+}
+
+function stopLiveSync() {
+    if (wsSyncTimer) { clearInterval(wsSyncTimer); wsSyncTimer = null; }
+    if (wsPollTimer) { clearInterval(wsPollTimer); wsPollTimer = null; }
+    if (wsCommandSyncTimer) { clearTimeout(wsCommandSyncTimer); wsCommandSyncTimer = null; }
+
+    const syncInd = $("ws-sync-indicator");
+    if (syncInd) syncInd.textContent = "";
+}
+
+/* ═══════════════════════════════════════════
+ * Manual sync (button)
+ * ═══════════════════════════════════════════ */
+
+async function syncDiskToWorkspace() {
+    await pushDiskToServer();
     refreshWorkspaceFiles();
 }
 
-/* ── Wire up workspace UI events ── */
+/* ═══════════════════════════════════════════
+ * Wire up UI events
+ * ═══════════════════════════════════════════ */
+
 function initWorkspaceEvents() {
-    /* Toggle checkbox */
     if (workspaceToggle) {
         workspaceToggle.addEventListener("change", () => {
             updateWorkspaceUI();
@@ -269,7 +425,6 @@ function initWorkspaceEvents() {
         });
     }
 
-    /* Upload button */
     const wsUploadBtn = $("ws-upload-btn");
     const wsUploadInput = $("ws-upload-input");
     if (wsUploadBtn && wsUploadInput) {
@@ -280,7 +435,6 @@ function initWorkspaceEvents() {
         });
     }
 
-    /* Import from game .img button */
     const wsImportBtn = $("ws-import-btn");
     if (wsImportBtn) {
         wsImportBtn.addEventListener("click", () => {
@@ -294,7 +448,6 @@ function initWorkspaceEvents() {
         });
     }
 
-    /* Import custom .img button */
     const wsImportCustomBtn = $("ws-import-custom-btn");
     const wsImportCustomInput = $("ws-import-custom-input");
     if (wsImportCustomBtn && wsImportCustomInput) {
@@ -305,15 +458,12 @@ function initWorkspaceEvents() {
         });
     }
 
-    /* Refresh */
     const wsRefreshBtn = $("ws-refresh-btn");
     if (wsRefreshBtn) wsRefreshBtn.addEventListener("click", refreshWorkspaceFiles);
 
-    /* Clear */
     const wsClearBtn = $("ws-clear-btn");
     if (wsClearBtn) wsClearBtn.addEventListener("click", clearWorkspace);
 
-    /* Sync back from emulator */
     const wsSyncBtn = $("ws-sync-btn");
     if (wsSyncBtn) wsSyncBtn.addEventListener("click", syncDiskToWorkspace);
 }
