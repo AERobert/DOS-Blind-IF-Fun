@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessible DOS Text Adventure Player</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Accessible DOS Text Adventure Player</h1>
+        <p>Play DOS text adventures with speech, braille display, and VI-style screen reading</p>
+    </header>
+
+    <!-- Setup -->
+    <details class="cpanel" id="section-setup" open>
+        <summary><h2>Setup</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:250px;">
+                <label for="game-select">Game Disk Image</label>
+                <select id="game-select"><option value="">Scanning for .img files...</option></select>
+            </div>
+            <div class="field-group" style="min-width:120px;max-width:160px;">
+                <label for="disk-type-select">Disk type</label>
+                <select id="disk-type-select">
+                    <option value="floppy">Floppy (B:)</option>
+                    <option value="hdd">Hard disk (C:)</option>
+                </select>
+            </div>
+            <div class="field-group" style="flex:0;min-width:auto;">
+                <label>&nbsp;</label>
+                <button id="load-custom-img-btn" class="btn-secondary btn-sm">Load Custom .img...</button>
+                <input type="file" id="custom-img-input" style="display:none" accept=".img,.ima,.bin">
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.75rem;">
+            <div class="field-group" style="min-width:200px;">
+                <label for="autorun-input">Auto-run command (blank = DOS prompt only)</label>
+                <input type="text" id="autorun-input" class="field-input" placeholder="e.g. T-ZERO.EXE or MNDWHEEL.BAT" spellcheck="false">
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.75rem;">
+            <button id="boot-btn" class="btn-primary">Boot &amp; Launch Game</button>
+            <button id="boot-prompt-btn" class="btn-secondary">Boot to DOS Prompt</button>
+        </div>
+        <div id="status" role="status" aria-live="polite">Select a game disk and press "Boot &amp; Launch Game" to start.</div>
+        </div>
+    </details>
+
+    <!-- Speech Settings -->
+    <details class="cpanel" id="section-speech">
+        <summary><h2>Speech Settings</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:200px;">
+                <label for="voice-select">Voice</label>
+                <select id="voice-select"><option value="">Loading voices...</option></select>
+            </div>
+            <div class="field-group">
+                <label for="rate-slider">Speed: <span id="rate-value" class="range-value">1.0</span></label>
+                <input type="range" id="rate-slider" min="0.3" max="3.0" step="0.1" value="1.0">
+            </div>
+            <div class="field-group">
+                <label for="pitch-slider">Pitch: <span id="pitch-value" class="range-value">1.0</span></label>
+                <input type="range" id="pitch-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+        </div>
+        <div class="panel-row">
+            <div class="toggle-group">
+                <input type="checkbox" id="auto-speak-toggle">
+                <label for="auto-speak-toggle">Auto-speak all changes</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="speak-after-cmd-toggle" checked>
+                <label for="speak-after-cmd-toggle">Speak after my commands</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="skip-decorative-toggle" checked>
+                <label for="skip-decorative-toggle">Skip border lines</label>
+            </div>
+            <div class="field-group" style="min-width:180px;">
+                <label for="typing-feedback-select">Typing feedback</label>
+                <select id="typing-feedback-select">
+                    <option value="none">None</option>
+                    <option value="characters" selected>Characters</option>
+                    <option value="words">Words (on space)</option>
+                </select>
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;">
+            <button id="speak-screen-btn" class="btn-secondary btn-sm" disabled>Speak Screen <span class="shortcut-hint">F2</span></button>
+            <button id="speak-last-btn" class="btn-secondary btn-sm" disabled>Speak Last Response <span class="shortcut-hint">F3</span></button>
+            <button id="speak-new-btn" class="btn-secondary btn-sm" disabled>Speak New <span class="shortcut-hint">F4</span></button>
+            <button id="stop-speech-btn" class="btn-danger btn-sm">Stop <span class="shortcut-hint">F5</span></button>
+            <button id="test-speech-btn" class="btn-secondary btn-sm">Test Voice</button>
+        </div>
+        <h3>Response Detection</h3>
+        <div class="panel-row">
+            <div class="field-group" style="min-width:120px;max-width:160px;">
+                <label for="prompt-char-input">Game prompt string</label>
+                <input type="text" id="prompt-char-input" class="field-input" value="&#x2666;&#x25BA;" spellcheck="false" title="The character(s) the game uses as its input prompt (e.g. &#x2666;&#x25BA; or >)">
+            </div>
+            <div class="field-group" style="min-width:220px;">
+                <label for="prompt-depth-select">Response extraction</label>
+                <select id="prompt-depth-select">
+                    <option value="last" selected>Between last two prompts (T-Zero style)</option>
+                    <option value="below">Everything after last prompt (Mindwheel style)</option>
+                </select>
+            </div>
+        </div>
+        </div>
+    </details>
+
+    <!-- Transcript Capture (reads game's transcript file directly from disk) -->
+    <details class="cpanel" id="section-transcript-cap">
+        <summary><h2>Transcript Capture</h2></summary>
+        <div class="cpanel-body">
+        <p id="transcript-cap-status" style="margin:0 0 0.6rem;font-size:0.9rem;">
+            Status: <strong id="transcript-cap-state">Idle</strong>
+            <span id="transcript-cap-info" style="color:var(--dim);margin-left:0.5rem;">
+                Type SCRIPT in the game, then click Watch.
+            </span>
+        </p>
+        <div class="panel-row" style="gap:0.4rem;">
+            <label for="transcript-watch-filename" style="white-space:nowrap;">File to watch:</label>
+            <input type="text" id="transcript-watch-filename" value="SCRIPT.TXT"
+                   style="flex:1;min-width:6rem;" placeholder="SCRIPT.TXT">
+        </div>
+        <div class="panel-row" style="gap:0.4rem;margin-top:0.4rem;">
+            <label for="transcript-poll-speed" style="white-space:nowrap;">Poll every:</label>
+            <select id="transcript-poll-speed" style="flex:1;">
+                <option value="500">0.5s</option>
+                <option value="1000">1s</option>
+                <option value="2000" selected>2s</option>
+                <option value="5000">5s</option>
+            </select>
+        </div>
+        <div class="panel-row" style="margin-top:0.4rem;gap:0.3rem;">
+            <button id="transcript-watch-btn" class="btn-primary btn-sm"
+                    title="Start polling the disk for the transcript file">Watch File</button>
+            <button id="transcript-disconnect-btn" class="btn-secondary btn-sm"
+                    title="Stop watching and return to screen capture" style="display:none;">Stop</button>
+        </div>
+        <div style="margin-top:0.5rem;">
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;">
+                <input type="checkbox" id="transcript-auto-flush-toggle">
+                Auto-flush after each command
+            </label>
+            <div id="transcript-auto-flush-options" style="display:none;margin:0.3rem 0 0 1.4rem;font-size:0.85rem;">
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.5rem;align-items:center;">
+                    <label for="transcript-flush-delay">Start after:</label>
+                    <input type="number" id="transcript-flush-delay" value="200" min="0" max="10000" step="100"
+                           style="width:5rem;" title="ms before sending 'script off'"> ms
+                    <label for="transcript-flush-d1">After 'script off':</label>
+                    <input type="number" id="transcript-flush-d1" value="400" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait for game to close transcript"> ms
+                    <label for="transcript-flush-d2">After 'script':</label>
+                    <input type="number" id="transcript-flush-d2" value="400" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait for filename prompt"> ms
+                    <label for="transcript-flush-d3">After filename:</label>
+                    <input type="number" id="transcript-flush-d3" value="200" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait before cleanup"> ms
+                </div>
+                <p style="margin:0.3rem 0 0;color:var(--dim);">
+                    Total ≈ <span id="transcript-flush-total">1200</span> ms.
+                    Increase if commands get garbled.
+                </p>
+            </div>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-auto-speak-toggle">
+                Auto-speak new transcript text (polling mode)
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-replace-screen-toggle">
+                Replace screen with transcript text
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-mute-screen-toggle">
+                Mute screen speech
+            </label>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;gap:0.3rem;">
+            <button id="transcript-test-read-btn" class="btn-secondary btn-sm"
+                    title="Read the transcript file from disk and report its size">Test Read</button>
+            <button id="transcript-speak-last-btn" class="btn-secondary btn-sm"
+                    title="Read the file and speak the last response">Speak Last</button>
+            <button id="transcript-flush-btn" class="btn-secondary btn-sm"
+                    title="Type 'script off' then re-open to force a C runtime flush">Flush &amp; Re-open</button>
+        </div>
+        <p style="margin:0.6rem 0 0;font-size:0.8rem;color:var(--dim);">
+            <strong>Auto-flush</strong> sends "script off" after each command,
+            reads the response from disk, speaks it, then re-opens the file.
+            Speech starts after Start + typing + d1 ≈ 1s. Re-open runs in background.
+            Check "Replace screen" to navigate transcript lines in READ mode (j/k).
+        </p>
+        </div>
+    </details>
+
+    <!-- Transcript Recording -->
+    <details class="cpanel" id="section-transcript">
+        <summary><h2>Transcript Recording</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:200px;">
+                <label for="transcript-filename">Filename</label>
+                <input type="text" id="transcript-filename" class="field-input" value="game-transcript.txt" spellcheck="false">
+            </div>
+            <button id="record-btn" class="btn-success btn-sm" disabled>Start Recording</button>
+            <button id="download-transcript-btn" class="btn-primary btn-sm" disabled style="display:none;">Download Transcript</button>
+            <button id="clear-transcript-btn" class="btn-secondary btn-sm" disabled style="display:none;">Clear</button>
+        </div>
+        <div id="transcript-stats" style="display:none;"></div>
+        <div id="transcript-preview" style="display:none;"></div>
+        </div>
+    </details>
+
+    <!-- Command Input -->
+    <section class="input-section" aria-labelledby="command-input-heading">
+        <h2 id="command-input-heading" style="font-size:1.1rem;font-weight:600;margin:0 0 0.5rem;">Command Input <span id="mode-indicator" class="insert">INSERT</span></h2>
+        <label for="command-input">Type a command and press Enter <span class="shortcut-hint">F6 to focus</span></label>
+        <div class="input-row">
+            <input type="text" id="command-input" disabled placeholder="Waiting for DOS to boot..." autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button id="send-btn" class="btn-secondary" disabled>Send</button>
+            <button id="enter-only-btn" class="btn-secondary btn-sm" disabled title="Send just Enter key (no text)">Enter&#x21B5;</button>
+        </div>
+        <div class="toggle-group" style="margin-top:0.5rem">
+            <input type="checkbox" id="single-key-mode" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
+            <label for="single-key-mode" style="font-size:0.85rem;cursor:pointer">Single-key mode (for menu-driven games like Eamon)</label>
+        </div>
+    </section>
+
+    <!-- Screen -->
+    <details class="cpanel" id="section-screen" open>
+        <summary><h2 id="screen-heading">Game Screen</h2></summary>
+        <div class="cpanel-body">
+        <div id="accessible-screen" role="log" aria-labelledby="screen-heading" tabindex="0"></div>
+        </div>
+    </details>
+
+    <!-- Screen History Buffer -->
+    <details class="cpanel" id="section-history">
+        <summary><h2>Output History</h2> <span class="shortcut-hint">F7=Prev Response, F8=Next Response</span></summary>
+        <div class="cpanel-body">
+        <div id="history-log" role="log" aria-live="off" tabindex="0">
+            <div class="history-entry">History appears here after the game starts.</div>
+        </div>
+        <div class="history-nav">
+            <button id="hist-prev-btn" class="btn-secondary btn-sm" disabled>&#x25C0; Prev Response</button>
+            <button id="hist-next-btn" class="btn-secondary btn-sm" disabled>Next Response &#x25B6;</button>
+            <span id="hist-position"></span>
+        </div>
+        </div>
+    </details>
+
+    <!-- File Manager -->
+    <details class="cpanel" id="section-files">
+        <summary><h2>File Manager (<span id="fm-drive-label">B:</span> Drive)</h2> <span class="shortcut-hint">F9=Refresh</span></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <button id="fm-refresh-btn" class="btn-secondary btn-sm" disabled>Refresh File List</button>
+            <button id="fm-upload-btn" class="btn-secondary btn-sm" disabled>Upload File to Disk</button>
+            <button id="fm-dl-floppy-btn" class="btn-secondary btn-sm" disabled>Download Entire Disk Image</button>
+            <input type="file" id="fm-upload-input" style="display:none" multiple>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;">
+            <button id="state-save-btn" class="btn-secondary btn-sm" disabled>Save Machine State <span class="shortcut-hint">F10</span></button>
+            <button id="state-restore-btn" class="btn-secondary btn-sm" disabled>Restore Machine State <span class="shortcut-hint">F11</span></button>
+            <input type="file" id="state-restore-input" style="display:none" accept=".v86state,.bin,.sav">
+        </div>
+        <div id="fm-status" style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem;"></div>
+        <table class="file-table" id="fm-table" style="display:none;">
+            <thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>
+            <tbody id="fm-tbody"></tbody>
+        </table>
+        </div>
+    </details>
+
+    <!-- Announcer -->
+    <div id="announcer" class="sr-only" role="status" aria-live="assertive" aria-atomic="false"></div>
+    <!-- Hidden v86 -->
+    <div id="v86-screen-container"><div style="white-space:pre;font:14px monospace;"></div><canvas></canvas></div>
+
+    <!-- Help -->
+    <details class="help-section">
+        <summary><h2>Keyboard Shortcuts &amp; Help</h2></summary>
+        <p>Two keyboard modes: <strong>INSERT</strong> (type commands) and <strong>READ</strong> (navigate screen).</p>
+        <ul>
+            <li><strong>INSERT mode</strong> (default — blue badge):</li>
+            <li><kbd>Enter</kbd> — Send command</li>
+            <li><kbd>Escape</kbd> — Switch to READ mode</li>
+            <li><kbd>&#x2190;</kbd> / <kbd>&#x2192;</kbd> — Move cursor, speaks character</li>
+            <li><kbd>&#x2191;</kbd> / <kbd>&#x2193;</kbd> — Recall command history, speaks command</li>
+            <li><kbd>Backspace</kbd> — Delete, speaks deleted character</li>
+        </ul>
+        <ul>
+            <li><strong>READ mode</strong> (orange badge — VI-style screen navigation):</li>
+            <li><kbd>j</kbd> / <kbd>k</kbd> — Next / previous line (speaks line)</li>
+            <li><kbd>h</kbd> / <kbd>l</kbd> — Previous / next character (speaks char)</li>
+            <li><kbd>w</kbd> / <kbd>b</kbd> — Next / previous word (speaks word)</li>
+            <li><kbd>g</kbd> — First line; <kbd>G</kbd> — Last non-blank line</li>
+            <li><kbd>^</kbd> — First non-space character; <kbd>$</kbd> — Last non-space character; <kbd>0</kbd> — Column 0</li>
+            <li><kbd>F7</kbd> / <kbd>F8</kbd> — Page up / page down (10 lines)</li>
+            <li><kbd>c</kbd> — Left-click at cursor position (for clickable menus)</li>
+            <li><kbd>C</kbd> (Shift+c) — Right-click at cursor position</li>
+            <li><kbd>i</kbd> or <kbd>Escape</kbd> — Return to INSERT mode</li>
+        </ul>
+        <ul>
+            <li><strong>Global F-keys</strong> (work in both modes):</li>
+            <li><kbd>F2</kbd> — Speak entire screen</li>
+            <li><kbd>F3</kbd> — Speak last game response (detects &#x2666;&#x25BA; prompt)</li>
+            <li><kbd>F4</kbd> — Speak new/pending changes</li>
+            <li><kbd>F5</kbd> — Stop speaking</li>
+            <li><kbd>F6</kbd> — Focus command input (INSERT mode)</li>
+            <li><kbd>F9</kbd> — Refresh file manager</li>
+            <li><kbd>F10</kbd> — Save machine state</li>
+            <li><kbd>F11</kbd> — Restore machine state</li>
+            <li><kbd>F12</kbd> — Flush transcript (or start watching if idle)</li>
+        </ul>
+        <p>The game prompt character is configurable in Speech Settings (default &#x2666;&#x25BA; for T-Zero, > for Mindwheel). The player detects this to isolate the last response for speech.</p>
+        <p>"Save Machine State" captures the entire emulator (CPU, RAM, disks) for perfect restore. "File Manager" lets you browse, download, and upload files on the game disk (FAT12 floppies and FAT16 hard disk images).</p>
+        <p>Transcript recording captures all game output as a downloadable text file. Printer output (via SCRIPT command with MODE LPT1:=COM1: redirect) is also captured if available.</p>
+        <p><strong>Single-key mode</strong> is for menu-driven games like Eamon Deluxe where the game expects individual keypresses (e.g. "1" to select option 1) rather than typed command lines. When enabled, each keypress goes directly to DOS without needing Enter. Arrow keys and Backspace also work. The mode auto-enables for games that need it.</p>
+        <p><strong>Mouse click simulation</strong>: in READ mode, press <kbd>c</kbd> to simulate a left-click at the reading cursor's position. This lets you interact with clickable menus in games like Time Quest and Eamon Deluxe. Use <kbd>j</kbd>/<kbd>k</kbd> to navigate to the desired line and <kbd>l</kbd>/<kbd>h</kbd> to move to the exact column, then press <kbd>c</kbd>. Press <kbd>C</kbd> (Shift+c) for right-click.</p>
+        <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
+        <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
+        <p>To add a new game: place its .img file in the same folder as this HTML file, then add an entry to the KNOWN_GAMES object in the source. Set disk type to "floppy" for 1.44MB FAT12 images (B: drive) or "hdd" for larger FAT16 images (C: drive). Or use "Load Custom .img" to load any disk image at runtime.</p>
+    </details>
+</div>
+
+<script src="libv86.js"></script>
+<script src="js/constants.js"></script>
+<script src="js/state.js"></script>
+<script src="js/ui-helpers.js"></script>
+<script src="js/settings.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/games.js"></script>
+<script src="js/screen.js"></script>
+<script src="js/textcap.js"></script>
+<script src="js/fat.js"></script>
+<script src="js/transcript.js"></script>
+<script src="js/history.js"></script>
+<script src="js/commands.js"></script>
+<script src="js/reading-mode.js"></script>
+<script src="js/speech-actions.js"></script>
+<script src="js/file-manager.js"></script>
+<script src="js/state-save.js"></script>
+<script src="js/emulator.js"></script>
+<script src="js/event-handlers.js"></script>
+<script src="js/init.js"></script>
+</body>
+</html>

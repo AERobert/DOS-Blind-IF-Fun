@@ -26,7 +26,7 @@ echo ""
 echo "---------------------------------------------"
 
 # Open the browser after a short delay (give server time to start)
-(sleep 2 && open "http://localhost:8000/dos-adventure-player.html") &
+(sleep 2 && open "http://localhost:8000/index.html") &
 
 # Start the Python HTTP server (blocks until Ctrl+C)
 python3 -m http.server 8000
