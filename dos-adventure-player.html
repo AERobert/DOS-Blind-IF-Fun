@@ -426,7 +426,7 @@
             <li><kbd>F12</kbd> — Flush transcript (or start watching if idle)</li>
         </ul>
         <p>The game prompt character is configurable in Speech Settings (default ♦► for T-Zero, > for Mindwheel). The player detects this to isolate the last response for speech.</p>
-        <p>"Save Machine State" captures the entire emulator (CPU, RAM, disks) for perfect restore. "File Manager" lets you browse and download files on the game disk (FAT12 floppies and FAT16 hard disk images). File upload is supported for floppy images only.</p>
+        <p>"Save Machine State" captures the entire emulator (CPU, RAM, disks) for perfect restore. "File Manager" lets you browse, download, and upload files on the game disk (FAT12 floppies and FAT16 hard disk images).</p>
         <p>Transcript recording captures all game output as a downloadable text file. Printer output (via SCRIPT command with MODE LPT1:=COM1: redirect) is also captured if available.</p>
         <p><strong>Single-key mode</strong> is for menu-driven games like Eamon Deluxe where the game expects individual keypresses (e.g. "1" to select option 1) rather than typed command lines. When enabled, each keypress goes directly to DOS without needing Enter. Arrow keys and Backspace also work. The mode auto-enables for games that need it.</p>
         <p><strong>Mouse click simulation</strong>: in READ mode, press <kbd>c</kbd> to simulate a left-click at the reading cursor's position. This lets you interact with clickable menus in games like Time Quest and Eamon Deluxe. Use <kbd>j</kbd>/<kbd>k</kbd> to navigate to the desired line and <kbd>l</kbd>/<kbd>h</kbd> to move to the exact column, then press <kbd>c</kbd>. Press <kbd>C</kbd> (Shift+c) for right-click.</p>
@@ -2748,27 +2748,55 @@ function getDiskBytesCopy() {
 }
 
 /**
- * Replace the B: floppy image with new data (for file uploads).
- * HDD write-back is not supported (too complex for direct buffer replacement).
+ * Replace the game disk image with new data (for file uploads).
+ * Supports both floppy (B:) and HDD (C:) images.
  */
 async function replaceDiskImage(data) {
-    if (!emulator || diskTypeSelect.value === "hdd") return false;
+    if (!emulator) return false;
+    
+    const isHDD = diskTypeSelect.value === "hdd";
+    
     try {
-        const drive = emulator.v86.cpu.devices.fdc.drives[1];
-        if (drive) {
+        if (isHDD) {
+            /* IDE primary master = hda (C: drive) */
+            const dev = emulator.v86.cpu.devices.ide.primary.master;
+            if (!dev || !dev.buffer) return false;
+            
             const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
-            const oldBuf = drive.buffer;
+            const oldBuf = dev.buffer;
+            
+            /* Try direct view replacement first (most efficient) */
             if (oldBuf && oldBuf.view) {
                 oldBuf.view = new DataView(ab);
                 oldBuf.byteLength = ab.byteLength;
                 return true;
             }
+            
+            /* Fall back to set() method if available */
             if (oldBuf && typeof oldBuf.set === "function") {
                 oldBuf.set(0, data, function() {});
                 return true;
             }
+            
+            return false;
+        } else {
+            /* Floppy B: drive */
+            const drive = emulator.v86.cpu.devices.fdc.drives[1];
+            if (drive) {
+                const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+                const oldBuf = drive.buffer;
+                if (oldBuf && oldBuf.view) {
+                    oldBuf.view = new DataView(ab);
+                    oldBuf.byteLength = ab.byteLength;
+                    return true;
+                }
+                if (oldBuf && typeof oldBuf.set === "function") {
+                    oldBuf.set(0, data, function() {});
+                    return true;
+                }
+            }
+            return false;
         }
-        return false;
     } catch(e) {
         console.error("replaceDiskImage failed:", e);
         return false;
@@ -3106,12 +3134,8 @@ function downloadFile(file) {
     fmStatus.textContent = "Downloaded " + file.fullName;
 }
 
-/** Upload file(s) to the game disk (floppy write-back only) */
+/** Upload file(s) to the game disk (floppy or HDD) */
 function uploadFiles(fileList) {
-    if (diskTypeSelect.value === "hdd") {
-        fmStatus.textContent = "File upload is only supported for floppy disk images.";
-        return;
-    }
     const img = getDiskBytesCopy();
     if (!img) { fmStatus.textContent = "Cannot access disk."; return; }
     const geo = parseFATGeometry(img);
