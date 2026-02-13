@@ -1,0 +1,3534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessible DOS Text Adventure Player</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg-primary: #0a0a0a; --bg-surface: #1a1a1a; --bg-elevated: #252525;
+            --text-primary: #e8e8e8; --text-secondary: #a0a0a0;
+            --accent: #4a9eff; --accent-hover: #6db3ff; --border: #3a3a3a;
+            --success: #4caf50; --warning: #ff9800; --error: #f44336;
+            --font-mono: "Menlo","Consolas","DejaVu Sans Mono",monospace;
+            --font-body: "Helvetica Neue","Segoe UI",sans-serif;
+        }
+        body { font-family: var(--font-body); background: var(--bg-primary); color: var(--text-primary); line-height: 1.5; min-height: 100vh; padding: 1rem; }
+        .container { max-width: 960px; margin: 0 auto; }
+        header { padding: 1rem 0; border-bottom: 1px solid var(--border); margin-bottom: 1rem; }
+        header h1 { font-size: 1.5rem; font-weight: 600; }
+        header p { color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.25rem; }
+        .panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 1.25rem; margin-bottom: 1rem; }
+        .panel h2 { font-size: 1.1rem; margin-bottom: 0.75rem; }
+        .panel-row { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end; }
+        .panel-row + .panel-row { margin-top: 0.75rem; }
+        .field-group { flex: 1; min-width: 120px; }
+        .field-group label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.3rem; }
+        select, input[type="range"] { width: 100%; font-family: var(--font-body); font-size: 0.85rem; background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; padding: 0.35rem 0.5rem; }
+        select:focus, input[type="range"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+        .toggle-group { display: flex; align-items: center; gap: 0.5rem; padding: 0.25rem 0; }
+        .toggle-group input[type="checkbox"] { width: 1.1rem; height: 1.1rem; accent-color: var(--accent); }
+        .toggle-group label { font-size: 0.85rem; color: var(--text-primary); cursor: pointer; }
+        button { font-family: var(--font-body); font-size: 0.9rem; font-weight: 500; padding: 0.5rem 1.25rem; border-radius: 6px; border: none; cursor: pointer; transition: background 0.15s; }
+        button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+        .btn-primary { background: var(--accent); color: #000; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+        .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); }
+        .btn-secondary:hover { background: var(--border); }
+        .btn-danger { background: var(--error); color: #fff; }
+        .btn-sm { font-size: 0.8rem; padding: 0.35rem 0.75rem; }
+        #status { font-size: 0.85rem; margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 4px; background: var(--bg-elevated); border-left: 3px solid var(--text-secondary); }
+        #status.loading { border-left-color: var(--warning); }
+        #status.ready { border-left-color: var(--success); }
+        #status.error { border-left-color: var(--error); }
+        #accessible-screen { background: #000; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-family: var(--font-mono); font-size: 14px; line-height: 1.2; min-height: 400px; overflow-y: auto; max-height: 80vh; }
+        .screen-line { white-space: pre; padding: 1px 0; min-height: 1.2em; }
+        .screen-line:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+        .input-section { margin-bottom: 1rem; }
+        .input-section > label { display: block; font-size: 0.9rem; margin-bottom: 0.35rem; color: var(--text-secondary); }
+        .input-row { display: flex; gap: 0.5rem; }
+        #command-input { flex: 1; font-family: var(--font-mono); font-size: 1rem; padding: 0.6rem 0.75rem; background: var(--bg-surface); color: var(--text-primary); border: 1px solid var(--border); border-radius: 6px; }
+        #command-input:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: var(--accent); }
+        .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+        #v86-screen-container { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+        #v86-screen-container canvas { display: none; }
+        #history-log { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-family: var(--font-mono); font-size: 13px; line-height: 1.4; max-height: 250px; overflow-y: auto; margin-top: 0.5rem; }
+        .history-entry { padding: 2px 4px; color: var(--text-secondary); }
+        .history-entry.command { color: var(--accent); font-weight: 600; }
+        .history-entry.prompt-marker { color: var(--warning); }
+        .history-entry:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+        .history-nav { display: flex; gap: 0.5rem; align-items: center; margin-top: 0.5rem; }
+        .history-nav span { font-size: 0.85rem; color: var(--text-secondary); }
+        .help-section { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; padding: 1rem 1.25rem; margin-top: 1rem; }
+        .help-section summary { font-weight: 500; cursor: pointer; }
+        .help-section p, .help-section ul { margin-top: 0.5rem; font-size: 0.9rem; color: var(--text-secondary); }
+        .help-section ul { margin-left: 1.25rem; }
+        .help-section li { margin-bottom: 0.35rem; }
+        .help-section kbd { font-family: var(--font-mono); font-size: 0.8rem; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 3px; padding: 0.1rem 0.35rem; }
+        .range-value { display: inline-block; min-width: 2.5em; text-align: center; font-family: var(--font-mono); font-size: 0.8rem; color: var(--accent); }
+        /* File manager table */
+        .file-table { width: 100%; border-collapse: collapse; font-family: var(--font-mono); font-size: 0.85rem; margin-top: 0.5rem; }
+        .file-table th, .file-table td { text-align: left; padding: 0.35rem 0.75rem; border-bottom: 1px solid var(--border); }
+        .file-table th { color: var(--text-secondary); font-weight: 500; }
+        .file-table tr:hover { background: var(--bg-elevated); }
+        .file-table button { font-size: 0.75rem; padding: 0.2rem 0.5rem; }
+        .shortcut-hint { font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.35rem; }
+
+        /* Collapsible panel styling */
+        details.cpanel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 1rem; }
+        details.cpanel > summary { padding: 1rem 1.25rem; font-size: 1.1rem; font-weight: 600; cursor: pointer; list-style: none; display: flex; align-items: center; gap: 0.5rem; }
+        details.cpanel > summary::-webkit-details-marker { display: none; }
+        details.cpanel > summary::before { content: "▶"; font-size: 0.7rem; transition: transform 0.15s; display: inline-block; }
+        details.cpanel[open] > summary::before { transform: rotate(90deg); }
+        details.cpanel > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 8px; }
+        .cpanel-body { padding: 0 1.25rem 1.25rem; }
+
+        /* Headings inside summary elements: reset default margins */
+        details.cpanel > summary h2,
+        details.cpanel > summary h3,
+        .help-section > summary h2 { margin: 0; font-size: inherit; font-weight: inherit; display: inline; }
+        /* Subsection headings within panel bodies */
+        .cpanel-body h3 { font-size: 0.95rem; font-weight: 600; margin: 1rem 0 0.5rem; color: var(--text-secondary); border-bottom: 1px solid var(--border); padding-bottom: 0.3rem; }
+
+        /* Mode indicator badge (INSERT / READ) */
+        #mode-indicator { display: inline-block; font-family: var(--font-mono); font-size: 0.8rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 4px; margin-left: 0.75rem; text-transform: uppercase; }
+        #mode-indicator.insert { background: var(--accent); color: #000; }
+        #mode-indicator.read { background: var(--warning); color: #000; }
+
+        /* Reading cursor highlight */
+        .screen-line.reading-cursor { background: #1a3a5c; }
+
+        /* Recording indicator badge */
+        .recording-badge { display: inline-block; background: var(--error); color: #fff; font-size: 0.75rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 10px; margin-left: 0.5rem; animation: pulse-rec 1.5s infinite; }
+        @keyframes pulse-rec { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        /* Transcript preview */
+        #transcript-preview { background: #000; border: 1px solid var(--border); border-radius: 4px; padding: 0.5rem; font-family: var(--font-mono); font-size: 12px; line-height: 1.3; max-height: 120px; overflow-y: auto; margin-top: 0.5rem; color: var(--text-secondary); white-space: pre-wrap; }
+        #transcript-stats { font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.35rem; }
+        .btn-success { background: var(--success); color: #000; }
+        .btn-success:hover { background: #66bb6a; }
+        input[type="text"].field-input { font-family: var(--font-body); font-size: 0.85rem; background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); border-radius: 4px; padding: 0.35rem 0.5rem; }
+        input[type="text"].field-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Accessible DOS Text Adventure Player</h1>
+        <p>Play DOS text adventures with speech, braille display, and VI-style screen reading</p>
+    </header>
+
+    <!-- Setup -->
+    <details class="cpanel" id="section-setup" open>
+        <summary><h2>Setup</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:250px;">
+                <label for="game-select">Game Disk Image</label>
+                <select id="game-select"><option value="">Scanning for .img files...</option></select>
+            </div>
+            <div class="field-group" style="min-width:120px;max-width:160px;">
+                <label for="disk-type-select">Disk type</label>
+                <select id="disk-type-select">
+                    <option value="floppy">Floppy (B:)</option>
+                    <option value="hdd">Hard disk (C:)</option>
+                </select>
+            </div>
+            <div class="field-group" style="flex:0;min-width:auto;">
+                <label>&nbsp;</label>
+                <button id="load-custom-img-btn" class="btn-secondary btn-sm">Load Custom .img...</button>
+                <input type="file" id="custom-img-input" style="display:none" accept=".img,.ima,.bin">
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.75rem;">
+            <div class="field-group" style="min-width:200px;">
+                <label for="autorun-input">Auto-run command (blank = DOS prompt only)</label>
+                <input type="text" id="autorun-input" class="field-input" placeholder="e.g. T-ZERO.EXE or MNDWHEEL.BAT" spellcheck="false">
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.75rem;">
+            <button id="boot-btn" class="btn-primary">Boot &amp; Launch Game</button>
+            <button id="boot-prompt-btn" class="btn-secondary">Boot to DOS Prompt</button>
+        </div>
+        <div id="status" role="status" aria-live="polite">Select a game disk and press "Boot &amp; Launch Game" to start.</div>
+        </div>
+    </details>
+
+    <!-- Speech Settings -->
+    <details class="cpanel" id="section-speech">
+        <summary><h2>Speech Settings</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:200px;">
+                <label for="voice-select">Voice</label>
+                <select id="voice-select"><option value="">Loading voices...</option></select>
+            </div>
+            <div class="field-group">
+                <label for="rate-slider">Speed: <span id="rate-value" class="range-value">1.0</span></label>
+                <input type="range" id="rate-slider" min="0.3" max="3.0" step="0.1" value="1.0">
+            </div>
+            <div class="field-group">
+                <label for="pitch-slider">Pitch: <span id="pitch-value" class="range-value">1.0</span></label>
+                <input type="range" id="pitch-slider" min="0.5" max="2.0" step="0.1" value="1.0">
+            </div>
+        </div>
+        <div class="panel-row">
+            <div class="toggle-group">
+                <input type="checkbox" id="auto-speak-toggle">
+                <label for="auto-speak-toggle">Auto-speak all changes</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="speak-after-cmd-toggle" checked>
+                <label for="speak-after-cmd-toggle">Speak after my commands</label>
+            </div>
+            <div class="toggle-group">
+                <input type="checkbox" id="skip-decorative-toggle" checked>
+                <label for="skip-decorative-toggle">Skip border lines</label>
+            </div>
+            <div class="field-group" style="min-width:180px;">
+                <label for="typing-feedback-select">Typing feedback</label>
+                <select id="typing-feedback-select">
+                    <option value="none">None</option>
+                    <option value="characters" selected>Characters</option>
+                    <option value="words">Words (on space)</option>
+                </select>
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;">
+            <button id="speak-screen-btn" class="btn-secondary btn-sm" disabled>Speak Screen <span class="shortcut-hint">F2</span></button>
+            <button id="speak-last-btn" class="btn-secondary btn-sm" disabled>Speak Last Response <span class="shortcut-hint">F3</span></button>
+            <button id="speak-new-btn" class="btn-secondary btn-sm" disabled>Speak New <span class="shortcut-hint">F4</span></button>
+            <button id="stop-speech-btn" class="btn-danger btn-sm">Stop <span class="shortcut-hint">F5</span></button>
+            <button id="test-speech-btn" class="btn-secondary btn-sm">Test Voice</button>
+        </div>
+        <h3>Response Detection</h3>
+        <div class="panel-row">
+            <div class="field-group" style="min-width:120px;max-width:160px;">
+                <label for="prompt-char-input">Game prompt string</label>
+                <input type="text" id="prompt-char-input" class="field-input" value="♦►" spellcheck="false" title="The character(s) the game uses as its input prompt (e.g. ♦► or >)">
+            </div>
+            <div class="field-group" style="min-width:220px;">
+                <label for="prompt-depth-select">Response extraction</label>
+                <select id="prompt-depth-select">
+                    <option value="last" selected>Between last two prompts (T-Zero style)</option>
+                    <option value="below">Everything after last prompt (Mindwheel style)</option>
+                </select>
+            </div>
+        </div>
+        </div>
+    </details>
+
+    <!-- Transcript Capture (reads game's transcript file directly from disk) -->
+    <details class="cpanel" id="section-transcript-cap">
+        <summary><h2>Transcript Capture</h2></summary>
+        <div class="cpanel-body">
+        <p id="transcript-cap-status" style="margin:0 0 0.6rem;font-size:0.9rem;">
+            Status: <strong id="transcript-cap-state">Idle</strong>
+            <span id="transcript-cap-info" style="color:var(--dim);margin-left:0.5rem;">
+                Type SCRIPT in the game, then click Watch.
+            </span>
+        </p>
+        <div class="panel-row" style="gap:0.4rem;">
+            <label for="transcript-watch-filename" style="white-space:nowrap;">File to watch:</label>
+            <input type="text" id="transcript-watch-filename" value="SCRIPT.TXT"
+                   style="flex:1;min-width:6rem;" placeholder="SCRIPT.TXT">
+        </div>
+        <div class="panel-row" style="gap:0.4rem;margin-top:0.4rem;">
+            <label for="transcript-poll-speed" style="white-space:nowrap;">Poll every:</label>
+            <select id="transcript-poll-speed" style="flex:1;">
+                <option value="500">0.5s</option>
+                <option value="1000">1s</option>
+                <option value="2000" selected>2s</option>
+                <option value="5000">5s</option>
+            </select>
+        </div>
+        <div class="panel-row" style="margin-top:0.4rem;gap:0.3rem;">
+            <button id="transcript-watch-btn" class="btn-primary btn-sm"
+                    title="Start polling the disk for the transcript file">Watch File</button>
+            <button id="transcript-disconnect-btn" class="btn-secondary btn-sm"
+                    title="Stop watching and return to screen capture" style="display:none;">Stop</button>
+        </div>
+        <div style="margin-top:0.5rem;">
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;">
+                <input type="checkbox" id="transcript-auto-flush-toggle">
+                Auto-flush after each command
+            </label>
+            <div id="transcript-auto-flush-options" style="display:none;margin:0.3rem 0 0 1.4rem;font-size:0.85rem;">
+                <div style="display:grid;grid-template-columns:auto 1fr;gap:0.2rem 0.5rem;align-items:center;">
+                    <label for="transcript-flush-delay">Start after:</label>
+                    <input type="number" id="transcript-flush-delay" value="200" min="0" max="10000" step="100"
+                           style="width:5rem;" title="ms before sending 'script off'"> ms
+                    <label for="transcript-flush-d1">After 'script off':</label>
+                    <input type="number" id="transcript-flush-d1" value="400" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait for game to close transcript"> ms
+                    <label for="transcript-flush-d2">After 'script':</label>
+                    <input type="number" id="transcript-flush-d2" value="400" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait for filename prompt"> ms
+                    <label for="transcript-flush-d3">After filename:</label>
+                    <input type="number" id="transcript-flush-d3" value="200" min="100" max="10000" step="100"
+                           style="width:5rem;" title="ms to wait before cleanup"> ms
+                </div>
+                <p style="margin:0.3rem 0 0;color:var(--dim);">
+                    Total ≈ <span id="transcript-flush-total">1200</span> ms.
+                    Increase if commands get garbled.
+                </p>
+            </div>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-auto-speak-toggle">
+                Auto-speak new transcript text (polling mode)
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-replace-screen-toggle">
+                Replace screen with transcript text
+            </label>
+            <label style="display:flex;align-items:center;gap:0.4rem;font-size:0.9rem;margin-top:0.3rem;">
+                <input type="checkbox" id="transcript-mute-screen-toggle">
+                Mute screen speech
+            </label>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;gap:0.3rem;">
+            <button id="transcript-test-read-btn" class="btn-secondary btn-sm"
+                    title="Read the transcript file from disk and report its size">Test Read</button>
+            <button id="transcript-speak-last-btn" class="btn-secondary btn-sm"
+                    title="Read the file and speak the last response">Speak Last</button>
+            <button id="transcript-flush-btn" class="btn-secondary btn-sm"
+                    title="Type 'script off' then re-open to force a C runtime flush">Flush &amp; Re-open</button>
+        </div>
+        <p style="margin:0.6rem 0 0;font-size:0.8rem;color:var(--dim);">
+            <strong>Auto-flush</strong> sends "script off" after each command,
+            reads the response from disk, speaks it, then re-opens the file.
+            Speech starts after Start + typing + d1 ≈ 1s. Re-open runs in background.
+            Check "Replace screen" to navigate transcript lines in READ mode (j/k).
+        </p>
+        </div>
+    </details>
+
+    <!-- Transcript Recording -->
+    <details class="cpanel" id="section-transcript">
+        <summary><h2>Transcript Recording</h2></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <div class="field-group" style="min-width:200px;">
+                <label for="transcript-filename">Filename</label>
+                <input type="text" id="transcript-filename" class="field-input" value="game-transcript.txt" spellcheck="false">
+            </div>
+            <button id="record-btn" class="btn-success btn-sm" disabled>Start Recording</button>
+            <button id="download-transcript-btn" class="btn-primary btn-sm" disabled style="display:none;">Download Transcript</button>
+            <button id="clear-transcript-btn" class="btn-secondary btn-sm" disabled style="display:none;">Clear</button>
+        </div>
+        <div id="transcript-stats" style="display:none;"></div>
+        <div id="transcript-preview" style="display:none;"></div>
+        </div>
+    </details>
+
+    <!-- Command Input -->
+    <section class="input-section" aria-labelledby="command-input-heading">
+        <h2 id="command-input-heading" style="font-size:1.1rem;font-weight:600;margin:0 0 0.5rem;">Command Input <span id="mode-indicator" class="insert">INSERT</span></h2>
+        <label for="command-input">Type a command and press Enter <span class="shortcut-hint">F6 to focus</span></label>
+        <div class="input-row">
+            <input type="text" id="command-input" disabled placeholder="Waiting for DOS to boot..." autocomplete="off" autocapitalize="off" spellcheck="false">
+            <button id="send-btn" class="btn-secondary" disabled>Send</button>
+            <button id="enter-only-btn" class="btn-secondary btn-sm" disabled title="Send just Enter key (no text)">Enter&#x21B5;</button>
+        </div>
+        <div class="toggle-group" style="margin-top:0.5rem">
+            <input type="checkbox" id="single-key-mode" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
+            <label for="single-key-mode" style="font-size:0.85rem;cursor:pointer">Single-key mode (for menu-driven games like Eamon)</label>
+        </div>
+    </section>
+
+    <!-- Screen -->
+    <details class="cpanel" id="section-screen" open>
+        <summary><h2 id="screen-heading">Game Screen</h2></summary>
+        <div class="cpanel-body">
+        <div id="accessible-screen" role="log" aria-labelledby="screen-heading" tabindex="0"></div>
+        </div>
+    </details>
+
+    <!-- Screen History Buffer -->
+    <details class="cpanel" id="section-history">
+        <summary><h2>Output History</h2> <span class="shortcut-hint">F7=Prev Response, F8=Next Response</span></summary>
+        <div class="cpanel-body">
+        <div id="history-log" role="log" aria-live="off" tabindex="0">
+            <div class="history-entry">History appears here after the game starts.</div>
+        </div>
+        <div class="history-nav">
+            <button id="hist-prev-btn" class="btn-secondary btn-sm" disabled>◀ Prev Response</button>
+            <button id="hist-next-btn" class="btn-secondary btn-sm" disabled>Next Response ▶</button>
+            <span id="hist-position"></span>
+        </div>
+        </div>
+    </details>
+
+    <!-- File Manager -->
+    <details class="cpanel" id="section-files">
+        <summary><h2>File Manager (<span id="fm-drive-label">B:</span> Drive)</h2> <span class="shortcut-hint">F9=Refresh</span></summary>
+        <div class="cpanel-body">
+        <div class="panel-row">
+            <button id="fm-refresh-btn" class="btn-secondary btn-sm" disabled>Refresh File List</button>
+            <button id="fm-upload-btn" class="btn-secondary btn-sm" disabled>Upload File to Disk</button>
+            <button id="fm-dl-floppy-btn" class="btn-secondary btn-sm" disabled>Download Entire Disk Image</button>
+            <input type="file" id="fm-upload-input" style="display:none" multiple>
+        </div>
+        <div class="panel-row" style="margin-top:0.5rem;">
+            <button id="state-save-btn" class="btn-secondary btn-sm" disabled>Save Machine State <span class="shortcut-hint">F10</span></button>
+            <button id="state-restore-btn" class="btn-secondary btn-sm" disabled>Restore Machine State <span class="shortcut-hint">F11</span></button>
+            <input type="file" id="state-restore-input" style="display:none" accept=".v86state,.bin,.sav">
+        </div>
+        <div id="fm-status" style="font-size:0.85rem;color:var(--text-secondary);margin-top:0.5rem;"></div>
+        <table class="file-table" id="fm-table" style="display:none;">
+            <thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>
+            <tbody id="fm-tbody"></tbody>
+        </table>
+        </div>
+    </details>
+
+    <!-- Announcer -->
+    <div id="announcer" class="sr-only" role="status" aria-live="assertive" aria-atomic="false"></div>
+    <!-- Hidden v86 -->
+    <div id="v86-screen-container"><div style="white-space:pre;font:14px monospace;"></div><canvas></canvas></div>
+
+    <!-- Help -->
+    <details class="help-section">
+        <summary><h2>Keyboard Shortcuts &amp; Help</h2></summary>
+        <p>Two keyboard modes: <strong>INSERT</strong> (type commands) and <strong>READ</strong> (navigate screen).</p>
+        <ul>
+            <li><strong>INSERT mode</strong> (default — blue badge):</li>
+            <li><kbd>Enter</kbd> — Send command</li>
+            <li><kbd>Escape</kbd> — Switch to READ mode</li>
+            <li><kbd>←</kbd> / <kbd>→</kbd> — Move cursor, speaks character</li>
+            <li><kbd>↑</kbd> / <kbd>↓</kbd> — Recall command history, speaks command</li>
+            <li><kbd>Backspace</kbd> — Delete, speaks deleted character</li>
+        </ul>
+        <ul>
+            <li><strong>READ mode</strong> (orange badge — VI-style screen navigation):</li>
+            <li><kbd>j</kbd> / <kbd>k</kbd> — Next / previous line (speaks line)</li>
+            <li><kbd>h</kbd> / <kbd>l</kbd> — Previous / next character (speaks char)</li>
+            <li><kbd>w</kbd> / <kbd>b</kbd> — Next / previous word (speaks word)</li>
+            <li><kbd>g</kbd> — First line; <kbd>G</kbd> — Last non-blank line</li>
+            <li><kbd>^</kbd> — First non-space character; <kbd>$</kbd> — Last non-space character; <kbd>0</kbd> — Column 0</li>
+            <li><kbd>F7</kbd> / <kbd>F8</kbd> — Page up / page down (10 lines)</li>
+            <li><kbd>c</kbd> — Left-click at cursor position (for clickable menus)</li>
+            <li><kbd>C</kbd> (Shift+c) — Right-click at cursor position</li>
+            <li><kbd>i</kbd> or <kbd>Escape</kbd> — Return to INSERT mode</li>
+        </ul>
+        <ul>
+            <li><strong>Global F-keys</strong> (work in both modes):</li>
+            <li><kbd>F2</kbd> — Speak entire screen</li>
+            <li><kbd>F3</kbd> — Speak last game response (detects ♦► prompt)</li>
+            <li><kbd>F4</kbd> — Speak new/pending changes</li>
+            <li><kbd>F5</kbd> — Stop speaking</li>
+            <li><kbd>F6</kbd> — Focus command input (INSERT mode)</li>
+            <li><kbd>F9</kbd> — Refresh file manager</li>
+            <li><kbd>F10</kbd> — Save machine state</li>
+            <li><kbd>F11</kbd> — Restore machine state</li>
+            <li><kbd>F12</kbd> — Flush transcript (or start watching if idle)</li>
+        </ul>
+        <p>The game prompt character is configurable in Speech Settings (default ♦► for T-Zero, > for Mindwheel). The player detects this to isolate the last response for speech.</p>
+        <p>"Save Machine State" captures the entire emulator (CPU, RAM, disks) for perfect restore. "File Manager" lets you browse and download files on the game disk (FAT12 floppies and FAT16 hard disk images). File upload is supported for floppy images only.</p>
+        <p>Transcript recording captures all game output as a downloadable text file. Printer output (via SCRIPT command with MODE LPT1:=COM1: redirect) is also captured if available.</p>
+        <p><strong>Single-key mode</strong> is for menu-driven games like Eamon Deluxe where the game expects individual keypresses (e.g. "1" to select option 1) rather than typed command lines. When enabled, each keypress goes directly to DOS without needing Enter. Arrow keys and Backspace also work. The mode auto-enables for games that need it.</p>
+        <p><strong>Mouse click simulation</strong>: in READ mode, press <kbd>c</kbd> to simulate a left-click at the reading cursor's position. This lets you interact with clickable menus in games like Time Quest and Eamon Deluxe. Use <kbd>j</kbd>/<kbd>k</kbd> to navigate to the desired line and <kbd>l</kbd>/<kbd>h</kbd> to move to the exact column, then press <kbd>c</kbd>. Press <kbd>C</kbd> (Shift+c) for right-click.</p>
+        <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
+        <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
+        <p>To add a new game: place its .img file in the same folder as this HTML file, then add an entry to the KNOWN_GAMES object in the source. Set disk type to "floppy" for 1.44MB FAT12 images (B: drive) or "hdd" for larger FAT16 images (C: drive). Or use "Load Custom .img" to load any disk image at runtime.</p>
+    </details>
+</div>
+
+<script src="libv86.js"></script>
+<script>
+"use strict";
+
+/* ═══════ Constants ═══════ */
+const COLS = 80, ROWS = 25;
+const CP437 = [
+    " ","\u263a","\u263b","\u2665","\u2666","\u2663","\u2660","\u2022",
+    "\u25d8","\u25cb","\u25d9","\u2642","\u2640","\u266a","\u266b","\u263c",
+    "\u25ba","\u25c4","\u2195","\u203c","\u00b6","\u00a7","\u25ac","\u21a8",
+    "\u2191","\u2193","\u2192","\u2190","\u221f","\u2194","\u25b2","\u25bc",
+    " ","!","\"","#","$","%","&","'","(",")","*","+",",","-",".","/",
+    "0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?",
+    "@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O",
+    "P","Q","R","S","T","U","V","W","X","Y","Z","[","\\","]","^","_",
+    "`","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o",
+    "p","q","r","s","t","u","v","w","x","y","z","{","|","}","~","\u2302",
+    "\u00c7","\u00fc","\u00e9","\u00e2","\u00e4","\u00e0","\u00e5","\u00e7",
+    "\u00ea","\u00eb","\u00e8","\u00ef","\u00ee","\u00ec","\u00c4","\u00c5",
+    "\u00c9","\u00e6","\u00c6","\u00f4","\u00f6","\u00f2","\u00fb","\u00f9",
+    "\u00ff","\u00d6","\u00dc","\u00a2","\u00a3","\u00a5","\u20a7","\u0192",
+    "\u00e1","\u00ed","\u00f3","\u00fa","\u00f1","\u00d1","\u00aa","\u00ba",
+    "\u00bf","\u2310","\u00ac","\u00bd","\u00bc","\u00a1","\u00ab","\u00bb",
+    "\u2591","\u2592","\u2593","\u2502","\u2524","\u2561","\u2562","\u2556",
+    "\u2555","\u2563","\u2551","\u2557","\u255d","\u255c","\u255b","\u2510",
+    "\u2514","\u2534","\u252c","\u251c","\u2500","\u253c","\u255e","\u255f",
+    "\u255a","\u2554","\u2569","\u2566","\u2560","\u2550","\u256c","\u2567",
+    "\u2568","\u2564","\u2565","\u2559","\u2558","\u2552","\u2553","\u256b",
+    "\u256a","\u2518","\u250c","\u2588","\u2584","\u258c","\u2590","\u2580",
+    "\u03b1","\u00df","\u0393","\u03c0","\u03a3","\u03c3","\u00b5","\u03c4",
+    "\u03a6","\u0398","\u03a9","\u03b4","\u221e","\u03c6","\u03b5","\u2229",
+    "\u2261","\u00b1","\u2265","\u2264","\u2320","\u2321","\u00f7","\u2248",
+    "\u00b0","\u2219","\u00b7","\u221a","\u207f","\u00b2","\u25a0"," "
+];
+
+/* ♦► prompt characters (CP437 4=♦, 16=►) — default, can be changed in settings */
+function getPromptStr() { return promptCharInput.value || "\u2666\u25ba"; }
+
+/* Box-drawing regex for filtering decorative lines from speech */
+const BOX_RE = /^[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580─│┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬\-=+|_]+$/;
+
+const SCANCODES = { ENTER: [0x1C, 0x9C] };
+const FLOPPY_SIZE = 1474560; /* 1.44 MB */
+
+/* ═══════ State ═══════ */
+let emulator = null, screenBuffer = [], prevLines = [];
+let isReady = false, refreshTimer = null;
+let commandHistory = [], historyIndex = -1;
+let pendingChanges = [], lastResponseLines = [];
+let changeSettleTimer = null, awaitingResponse = false;
+
+/* Keyboard mode: "insert" (type commands) or "read" (VI-style navigation) */
+let keyMode = "insert";
+/* Reading cursor position in read mode */
+let readRow = 0, readCol = 0;
+
+/* Transcript recording state */
+let isRecording = false;
+let transcriptBuffer = "";
+/* Serial port capture buffer (for DOS SCRIPT → LPT1 → COM1 redirect) */
+let serialBuffer = "";
+
+/*
+ * TextCap: INT 10h hooking TSR that mirrors text output to COM1.
+ * When active, serial bytes are parsed as ANSI escape sequences
+ * and rendered to a virtual text buffer for screen reader access.
+ * This enables accessibility for games running in graphics mode.
+ */
+let textCapActive = false;
+let textCapBuffer = null;   /* 25×80 character grid, initialized on activation */
+let textCapCurRow = 0;
+let textCapCurCol = 0;
+let textCapDirty = false;   /* true when buffer has changed since last render */
+
+/* ANSI parser state machine for TextCap serial input */
+const TC_NORMAL = 0, TC_ESC = 1, TC_CSI = 2, TC_OSC = 3;
+let textCapParseState = TC_NORMAL;
+let textCapCsiParams = "";  /* accumulates CSI parameter digits/semicolons */
+let textCapOscBuf = "";     /* accumulates OSC payload */
+
+/*
+ * Transcript capture: polls the game disk directly for a transcript file
+ * (e.g. SCRIPT.TXT created by the game's SCRIPT command). Reads file
+ * content by following the FAT cluster chain, which gets updated in
+ * real-time even though the directory entry size stays 0 until close.
+ *
+ * This approach completely bypasses serial port framing issues — the
+ * transcript text is read from the exact same disk bytes that DOS wrote.
+ *
+ * When transcript capture is active, it COMPLETELY owns speech output.
+ * The INT 10h screen text pipeline is suppressed to prevent garbled
+ * screen text from interfering with clean transcript speech.
+ */
+let transcriptCapActive = false;   /* true = transcript owns speech */
+let transcriptLines = [];          /* array of clean transcript lines received */
+let transcriptLineBuffer = "";     /* partial line from last poll */
+let transcriptWatchdog = null;     /* timer to detect stalled transcript */
+const TRANSCRIPT_TIMEOUT_MS = 60000; /* fall back after 60s with no data */
+
+/* Disk polling state */
+let transcriptPollTimer = null;    /* setInterval handle */
+let transcriptPollLastLength = 0;  /* bytes of file content already processed */
+
+/* Auto-flush state */
+let autoFlushPending = false;      /* true while an auto-flush cycle is running */
+let autoFlushTimer = null;         /* setTimeout handle for delayed flush */
+
+/* Custom floppy image loaded via file picker (ArrayBuffer or null) */
+let customFloppyBlob = null;
+
+/*
+ * responseLog: array of response objects:
+ *   { type: "command"|"response", lines: string[], index: number }
+ * Used for navigating between responses with F7/F8.
+ */
+let responseLog = [];
+let responseNavIndex = -1; /* current position in responseLog for nav */
+
+/* ═══════ DOM refs ═══════ */
+const $ = id => document.getElementById(id);
+const bootBtn=$("boot-btn"), bootPromptBtn=$("boot-prompt-btn"), statusEl=$("status");
+const commandInput=$("command-input"), sendBtn=$("send-btn");
+const enterOnlyBtn=$("enter-only-btn"), singleKeyToggle=$("single-key-mode");
+const screenEl=$("accessible-screen"), announcer=$("announcer");
+const historyLog=$("history-log");
+const voiceSelect=$("voice-select"), rateSlider=$("rate-slider"), rateValue=$("rate-value");
+const pitchSlider=$("pitch-slider"), pitchValue=$("pitch-value");
+const autoSpeakToggle=$("auto-speak-toggle"), speakAfterCmdToggle=$("speak-after-cmd-toggle");
+const skipDecorToggle=$("skip-decorative-toggle");
+const speakScreenBtn=$("speak-screen-btn"), speakNewBtn=$("speak-new-btn");
+const speakLastBtn=$("speak-last-btn"), stopSpeechBtn=$("stop-speech-btn");
+const testSpeechBtn=$("test-speech-btn");
+const histPrevBtn=$("hist-prev-btn"), histNextBtn=$("hist-next-btn"), histPosition=$("hist-position");
+const fmRefreshBtn=$("fm-refresh-btn"), fmUploadBtn=$("fm-upload-btn");
+const fmDlFloppyBtn=$("fm-dl-floppy-btn"), fmUploadInput=$("fm-upload-input");
+const fmStatus=$("fm-status"), fmTable=$("fm-table"), fmTbody=$("fm-tbody");
+const stateSaveBtn=$("state-save-btn"), stateRestoreBtn=$("state-restore-btn");
+const stateRestoreInput=$("state-restore-input");
+const modeIndicator=$("mode-indicator");
+const recordBtn=$("record-btn"), downloadTranscriptBtn=$("download-transcript-btn");
+const clearTranscriptBtn=$("clear-transcript-btn"), transcriptFilename=$("transcript-filename");
+const transcriptPreview=$("transcript-preview"), transcriptStats=$("transcript-stats");
+const typingFeedbackSelect=$("typing-feedback-select");
+const gameSelect=$("game-select"), autorunInput=$("autorun-input"), diskTypeSelect=$("disk-type-select");
+const customImgInput=$("custom-img-input"), loadCustomImgBtn=$("load-custom-img-btn");
+const promptCharInput=$("prompt-char-input");
+const promptDepthSelect=$("prompt-depth-select");
+const transcriptCapState=$("transcript-cap-state"), transcriptCapInfo=$("transcript-cap-info");
+const transcriptWatchBtn=$("transcript-watch-btn");
+const transcriptWatchFilename=$("transcript-watch-filename");
+const transcriptPollSpeedSelect=$("transcript-poll-speed");
+const transcriptFlushBtn=$("transcript-flush-btn");
+const transcriptDisconnectBtn=$("transcript-disconnect-btn");
+const transcriptAutoSpeakToggle=$("transcript-auto-speak-toggle");
+const transcriptReplaceScreenToggle=$("transcript-replace-screen-toggle");
+const transcriptMuteScreenToggle=$("transcript-mute-screen-toggle");
+const transcriptAutoFlushToggle=$("transcript-auto-flush-toggle");
+const transcriptAutoFlushOptions=$("transcript-auto-flush-options");
+const transcriptFlushDelay=$("transcript-flush-delay");
+const transcriptFlushD1=$("transcript-flush-d1");
+const transcriptFlushD2=$("transcript-flush-d2");
+const transcriptFlushD3=$("transcript-flush-d3");
+const transcriptFlushTotal=$("transcript-flush-total");
+const transcriptTestReadBtn=$("transcript-test-read-btn");
+const transcriptSpeakLastBtn=$("transcript-speak-last-btn");
+
+/* ═══════════════════════════════════════════
+ * localStorage: persist speech settings
+ * ═══════════════════════════════════════════ */
+
+const STORAGE_KEY = "tzero-player-settings";
+
+function saveSettings() {
+    try {
+        const s = {
+            voiceURI: voiceSelect.value,
+            rate: rateSlider.value,
+            pitch: pitchSlider.value,
+            autoSpeak: autoSpeakToggle.checked,
+            speakAfterCmd: speakAfterCmdToggle.checked,
+            skipDecor: skipDecorToggle.checked,
+            typingFeedback: typingFeedbackSelect.value,
+            promptChar: promptCharInput.value,
+            promptDepth: promptDepthSelect.value,
+            diskType: diskTypeSelect.value,
+            autorun: autorunInput.value,
+            singleKey: singleKeyToggle.checked
+        };
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    } catch(e) { /* storage unavailable, ignore */ }
+}
+
+function loadSettings() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (s.rate) { rateSlider.value = s.rate; rateValue.textContent = parseFloat(s.rate).toFixed(1); }
+        if (s.pitch) { pitchSlider.value = s.pitch; pitchValue.textContent = parseFloat(s.pitch).toFixed(1); }
+        if (s.autoSpeak !== undefined) autoSpeakToggle.checked = s.autoSpeak;
+        if (s.speakAfterCmd !== undefined) speakAfterCmdToggle.checked = s.speakAfterCmd;
+        if (s.skipDecor !== undefined) skipDecorToggle.checked = s.skipDecor;
+        if (s.typingFeedback) typingFeedbackSelect.value = s.typingFeedback;
+        if (s.promptChar !== undefined) promptCharInput.value = s.promptChar;
+        if (s.promptDepth) promptDepthSelect.value = s.promptDepth;
+        if (s.diskType) diskTypeSelect.value = s.diskType;
+        if (s.autorun !== undefined) autorunInput.value = s.autorun;
+        if (s.singleKey !== undefined) singleKeyToggle.checked = s.singleKey;
+        /* Voice is restored after voices load — store URI for later */
+        if (s.voiceURI) voiceSelect.dataset.savedVoice = s.voiceURI;
+    } catch(e) {}
+}
+
+/* Auto-save whenever settings change */
+[rateSlider, pitchSlider].forEach(el => el.addEventListener("change", saveSettings));
+[autoSpeakToggle, speakAfterCmdToggle, skipDecorToggle, singleKeyToggle].forEach(el => el.addEventListener("change", saveSettings));
+voiceSelect.addEventListener("change", saveSettings);
+typingFeedbackSelect.addEventListener("change", saveSettings);
+promptCharInput.addEventListener("change", saveSettings);
+promptDepthSelect.addEventListener("change", saveSettings);
+diskTypeSelect.addEventListener("change", saveSettings);
+autorunInput.addEventListener("change", saveSettings);
+
+/* ═══════════════════════════════════════════
+ * Collapsible Section Persistence
+ * ═══════════════════════════════════════════ */
+
+const COLLAPSE_PREFIX = "tzero_section_";
+
+/** Save open/closed state of all collapsible panels to localStorage */
+function saveCollapseStates() {
+    document.querySelectorAll("details.cpanel[id]").forEach(d => {
+        try { localStorage.setItem(COLLAPSE_PREFIX + d.id, d.open ? "1" : "0"); } catch(e) {}
+    });
+}
+
+/** Restore collapse states from localStorage */
+function restoreCollapseStates() {
+    document.querySelectorAll("details.cpanel[id]").forEach(d => {
+        try {
+            const val = localStorage.getItem(COLLAPSE_PREFIX + d.id);
+            if (val !== null) d.open = (val === "1");
+        } catch(e) {}
+    });
+}
+
+/* Listen for toggle events on all collapsible panels */
+document.querySelectorAll("details.cpanel[id]").forEach(d => {
+    d.addEventListener("toggle", saveCollapseStates);
+});
+restoreCollapseStates();
+
+/* ═══════════════════════════════════════════
+ * Game Image Discovery & Presets
+ * ═══════════════════════════════════════════ */
+
+/*
+ * Known game presets: maps a disk image filename to default autorun
+ * command and prompt character(s). Extend this list as you add games.
+ * The player scans for each of these files via HEAD requests at startup.
+ */
+const KNOWN_GAMES = {
+    "tzero-data.img":  { label: "T-Zero",        autorun: "T-ZERO.EXE",   prompt: "\u2666\u25ba", depth: "last",  disk: "floppy" },
+    "mindwheel.img":   { label: "Mindwheel",      autorun: "MNDWHEEL.BAT", prompt: ">",            depth: "below", disk: "floppy" },
+    "timequest.img":   { label: "Time Quest",     autorun: "TQ.EXE",       prompt: ">",            depth: "below", disk: "hdd", graphics: true, textcap: true },
+    "eamondx.img":     { label: "Eamon Deluxe",   autorun: "EAMONDX.BAT",  prompt: "?",            depth: "below", disk: "hdd", singleKey: true },
+};
+
+/**
+ * Populate the game selector by probing for each known .img file.
+ * Uses HEAD requests so only a few bytes are exchanged per file.
+ * Also adds any previously-remembered custom image filename.
+ */
+async function populateGameSelect() {
+    gameSelect.innerHTML = "";
+    const found = [];
+
+    /* Probe each known image file */
+    for (const [filename, info] of Object.entries(KNOWN_GAMES)) {
+        try {
+            const resp = await fetch(filename, { method: "HEAD" });
+            if (resp.ok) found.push({ filename, label: info.label });
+        } catch(e) { /* file not present, skip */ }
+    }
+
+    if (found.length === 0) {
+        const o = document.createElement("option");
+        o.value = ""; o.textContent = "No .img files found — use 'Load Custom .img'";
+        gameSelect.appendChild(o);
+    } else {
+        for (const g of found) {
+            const o = document.createElement("option");
+            o.value = g.filename;
+            o.textContent = g.label + " (" + g.filename + ")";
+            gameSelect.appendChild(o);
+        }
+    }
+
+    /* If settings had a saved game selection, restore it */
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (raw) {
+            const s = JSON.parse(raw);
+            if (s.selectedGame && gameSelect.querySelector('option[value="' + s.selectedGame + '"]')) {
+                gameSelect.value = s.selectedGame;
+            }
+        }
+    } catch(e) {}
+
+    /* Apply presets for the initially selected game */
+    applyGamePreset();
+}
+
+/**
+ * Apply autorun and prompt presets when a known game is selected.
+ * Always applies all preset values — if the user wants to customize,
+ * they can edit after selecting. This avoids stale-localStorage bugs
+ * where fields retain values from a previously selected game.
+ */
+function applyGamePreset() {
+    const filename = gameSelect.value;
+    const preset = KNOWN_GAMES[filename];
+    if (!preset) return;
+
+    autorunInput.value = preset.autorun;
+    promptCharInput.value = preset.prompt;
+    if (preset.depth) promptDepthSelect.value = preset.depth;
+    if (preset.disk) diskTypeSelect.value = preset.disk;
+
+    /* Toggle single-key mode for menu-driven games */
+    singleKeyToggle.checked = !!preset.singleKey;
+
+    /* Warn about graphics-mode games that can't be screen-read */
+    if (preset.graphics) {
+        setStatus("loading", preset.label + " uses graphics mode. Screen reader access will be limited after boot.");
+    }
+
+    saveSettings();
+
+    /* Clear custom blob when switching to a known image */
+    customFloppyBlob = null;
+}
+
+/** Handle loading a custom .img file from the file picker */
+function handleCustomImgUpload(file) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function() {
+        customFloppyBlob = reader.result; /* ArrayBuffer */
+        /* Add or update a "Custom" option in the game selector */
+        let opt = gameSelect.querySelector('option[data-custom="1"]');
+        if (!opt) {
+            opt = document.createElement("option");
+            opt.setAttribute("data-custom", "1");
+            gameSelect.appendChild(opt);
+        }
+        opt.value = file.name;
+        opt.textContent = "Custom: " + file.name;
+        gameSelect.value = file.name;
+        setStatus("loading", "Custom image loaded: " + file.name + " (" + (file.size / 1024).toFixed(0) + " KB)");
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+/* Save selected game in settings */
+gameSelect.addEventListener("change", function() {
+    applyGamePreset();
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        const s = raw ? JSON.parse(raw) : {};
+        s.selectedGame = gameSelect.value;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+    } catch(e) {}
+});
+
+loadCustomImgBtn.addEventListener("click", () => customImgInput.click());
+customImgInput.addEventListener("change", function() {
+    if (this.files.length) handleCustomImgUpload(this.files[0]);
+    this.value = "";
+});
+
+/* Scan for images on page load */
+populateGameSelect();
+
+/* ═══════════════════════════════════════════
+ * Web Speech API
+ * ═══════════════════════════════════════════ */
+
+let voices = [];
+
+function loadVoices() {
+    voices = speechSynthesis.getVoices();
+    if (!voices.length) return;
+    voiceSelect.innerHTML = "";
+    const english = voices.filter(v => v.lang.startsWith("en"));
+    const others = voices.filter(v => !v.lang.startsWith("en"));
+
+    function addGroup(label, list) {
+        if (!list.length) return;
+        const g = document.createElement("optgroup");
+        g.label = label;
+        for (const v of list) {
+            const o = document.createElement("option");
+            o.value = v.voiceURI;
+            o.textContent = v.name + (v.default ? " (default)" : "");
+            g.appendChild(o);
+        }
+        voiceSelect.appendChild(g);
+    }
+    addGroup("English", english);
+    addGroup("Other Languages", others);
+
+    /* Restore saved voice or pick a sensible default */
+    const saved = voiceSelect.dataset.savedVoice;
+    if (saved && voices.find(v => v.voiceURI === saved)) {
+        voiceSelect.value = saved;
+    } else {
+        for (const name of ["Samantha","Alex","Daniel","Karen","Fiona"]) {
+            const m = voices.find(v => v.name.includes(name));
+            if (m) { voiceSelect.value = m.voiceURI; break; }
+        }
+    }
+}
+
+speechSynthesis.addEventListener("voiceschanged", loadVoices);
+loadVoices();
+
+function getVoice() { return voices.find(v => v.voiceURI === voiceSelect.value) || null; }
+
+function speak(text, interrupt) {
+    if (interrupt !== false) speechSynthesis.cancel();
+    if (!text || !text.trim()) return;
+    const u = new SpeechSynthesisUtterance(text);
+    const v = getVoice();
+    if (v) u.voice = v;
+    u.rate = parseFloat(rateSlider.value);
+    u.pitch = parseFloat(pitchSlider.value);
+    speechSynthesis.speak(u);
+}
+
+function stopSpeech() { speechSynthesis.cancel(); }
+
+/* ═══════════════════════════════════════════
+ * Screen Buffer
+ * ═══════════════════════════════════════════ */
+
+function initBuffer() {
+    screenBuffer = []; prevLines = [];
+    for (let r = 0; r < ROWS; r++) {
+        screenBuffer[r] = new Uint8Array(COLS).fill(0x20);
+        prevLines[r] = " ".repeat(COLS);
+    }
+    pendingChanges = []; lastResponseLines = [];
+}
+
+function initScreenDOM() {
+    screenEl.innerHTML = "";
+    for (let r = 0; r < ROWS; r++) {
+        const d = document.createElement("div");
+        d.className = "screen-line";
+        d.setAttribute("role", "text");
+        d.setAttribute("aria-label", "Line " + (r+1) + ": blank");
+        d.setAttribute("tabindex", "-1");
+        d.id = "screen-line-" + r;
+        d.textContent = " ".repeat(COLS);
+        screenEl.appendChild(d);
+    }
+}
+
+/* ═══════════════════════════════════════════
+ * TextCap — serial-based text capture for graphics-mode games
+ * ═══════════════════════════════════════════
+ *
+ * When the TEXTCAP.COM TSR is running in the guest, it hooks INT 10h
+ * and mirrors all BIOS text output to COM1 with ANSI cursor positioning.
+ * This parser receives those serial bytes and maintains a virtual
+ * 25×80 text buffer that replaces the VGA screen buffer for the
+ * accessible display.
+ *
+ * Protocol from TSR:
+ *   Startup marker:  ESC [ T C ]
+ *   Cursor move:     ESC [ row ; col H   (1-based, standard ANSI CUP)
+ *   Text:            raw bytes (printable ASCII)
+ *   Newlines:        CR (0x0D) and LF (0x0A) advance cursor accordingly
+ */
+
+/**
+ * Initialize the TextCap screen buffer — a 25×80 grid of spaces.
+ * Called when we detect the TSR startup marker on the serial port.
+ */
+function initTextCapBuffer() {
+    textCapBuffer = [];
+    for (let r = 0; r < ROWS; r++) {
+        textCapBuffer[r] = new Array(COLS).fill(0x20);
+    }
+    textCapCurRow = 0;
+    textCapCurCol = 0;
+    textCapDirty = false;
+    textCapParseState = TC_NORMAL;
+    textCapCsiParams = "";
+}
+
+/**
+ * Convert a TextCap buffer row to a display string.
+ * Uses CP437 mapping for consistency with the VGA screen buffer.
+ */
+function textCapRowToString(r) {
+    if (!textCapBuffer || !textCapBuffer[r]) return " ".repeat(COLS);
+    let s = "";
+    for (let c = 0; c < COLS; c++) {
+        const code = textCapBuffer[r][c];
+        /* TextCap sends ASCII; map through CP437 for consistency */
+        s += (code < CP437.length) ? CP437[code] : String.fromCharCode(code);
+    }
+    return s;
+}
+
+/**
+ * Process one serial byte through the TextCap ANSI parser.
+ * Handles the subset of ANSI we emit: ESC[row;colH for cursor
+ * positioning, plus raw printable characters.
+ */
+function textCapParseByte(byte) {
+    switch (textCapParseState) {
+
+    case TC_NORMAL:
+        if (byte === 0x1B) {
+            /* ESC — begin escape sequence */
+            textCapParseState = TC_ESC;
+        } else if (byte === 0x0D) {
+            /* Carriage Return — move to column 0 */
+            textCapCurCol = 0;
+        } else if (byte === 0x0A) {
+            /* Line Feed — advance row, scroll if needed */
+            textCapCurRow++;
+            if (textCapCurRow >= ROWS) {
+                textCapScrollUp();
+                textCapCurRow = ROWS - 1;
+            }
+            textCapDirty = true;
+        } else if (byte === 0x08) {
+            /* Backspace — move cursor left */
+            if (textCapCurCol > 0) textCapCurCol--;
+        } else if (byte >= 0x20) {
+            /* Printable character — write to buffer and advance */
+            if (textCapCurRow >= 0 && textCapCurRow < ROWS &&
+                textCapCurCol >= 0 && textCapCurCol < COLS) {
+                textCapBuffer[textCapCurRow][textCapCurCol] = byte;
+                textCapDirty = true;
+            }
+            textCapCurCol++;
+            if (textCapCurCol >= COLS) {
+                /* Wrap to next line */
+                textCapCurCol = 0;
+                textCapCurRow++;
+                if (textCapCurRow >= ROWS) {
+                    textCapScrollUp();
+                    textCapCurRow = ROWS - 1;
+                }
+            }
+        }
+        break;
+
+    case TC_ESC:
+        if (byte === 0x5B) {
+            /* ESC [ — begin CSI sequence */
+            textCapParseState = TC_CSI;
+            textCapCsiParams = "";
+        } else {
+            /* Unknown escape, return to normal */
+            textCapParseState = TC_NORMAL;
+        }
+        break;
+
+    case TC_CSI:
+        if (byte >= 0x30 && byte <= 0x3F) {
+            /* Parameter byte: digits 0-9, semicolon, etc. */
+            textCapCsiParams += String.fromCharCode(byte);
+        } else if (byte >= 0x20 && byte <= 0x2F) {
+            /* Intermediate byte — accumulate but we don't use these */
+            textCapCsiParams += String.fromCharCode(byte);
+        } else {
+            /* Final byte — dispatch the CSI command */
+            textCapDispatchCSI(byte, textCapCsiParams);
+            textCapParseState = TC_NORMAL;
+        }
+        break;
+
+    default:
+        textCapParseState = TC_NORMAL;
+    }
+}
+
+/**
+ * Dispatch a CSI (Control Sequence Introducer) command.
+ * We only handle 'H' (Cursor Position) and 'J' (Erase Display).
+ */
+function textCapDispatchCSI(cmd, params) {
+    /*
+     * Parse CSI parameters. Use NaN check instead of || 1 so that
+     * explicit parameter 0 (e.g. ESC[0K = erase to end of line)
+     * isn't silently converted to 1. Default values vary per command
+     * and are handled in each case.
+     */
+    const parts = params.split(";").map(s => {
+        const n = parseInt(s, 10);
+        return isNaN(n) ? -1 : n; /* -1 = parameter was absent */
+    });
+
+    switch (cmd) {
+    case 0x48: /* 'H' — Cursor Position: ESC[row;colH (defaults 1;1) */
+        textCapCurRow = Math.max(0, Math.min(ROWS - 1, (parts[0] > 0 ? parts[0] : 1) - 1));
+        textCapCurCol = Math.max(0, Math.min(COLS - 1, (parts[1] > 0 ? parts[1] : 1) - 1));
+
+        /*
+         * Auto-clear from cursor to end of line when the game repositions.
+         *
+         * In a real VGA framebuffer, old pixels persist but new writes
+         * overwrite them. Games like Time Quest don't explicitly erase
+         * lines because they don't need to — new text replaces old pixels.
+         * But in our character buffer, old characters linger past the end
+         * of shorter new text. Clearing to EOL on cursor reposition
+         * prevents stale text from accumulating after game responses.
+         *
+         * This is safe because games typically position the cursor to
+         * start writing new content, so anything to the right of the
+         * cursor belongs to the previous frame and should be cleared.
+         */
+        for (let c = textCapCurCol; c < COLS; c++) {
+            textCapBuffer[textCapCurRow][c] = 0x20;
+        }
+        textCapDirty = true;
+        break;
+
+    case 0x4A: /* 'J' — Erase in Display (default 0, we handle 2) */
+        if (parts[0] === 2) {
+            /* Clear entire screen */
+            for (let r = 0; r < ROWS; r++) {
+                textCapBuffer[r].fill(0x20);
+            }
+            textCapDirty = true;
+        }
+        break;
+
+    case 0x4B: /* 'K' — Erase in Line (default 0 = cursor to EOL) */
+        if (parts[0] <= 0) { /* 0 or absent (-1) both mean "erase to EOL" */
+            /* Clear from cursor to end of line */
+            for (let c = textCapCurCol; c < COLS; c++) {
+                textCapBuffer[textCapCurRow][c] = 0x20;
+            }
+            textCapDirty = true;
+        }
+        break;
+    }
+}
+
+/**
+ * Scroll the TextCap buffer up by one line.
+ * The top line is lost; the bottom line becomes blank.
+ */
+function textCapScrollUp() {
+    if (!textCapBuffer) return;
+    textCapBuffer.shift();
+    textCapBuffer.push(new Array(COLS).fill(0x20));
+    textCapDirty = true;
+}
+
+/**
+ * Render the TextCap buffer to the accessible screen DOM.
+ * Called periodically when textCapDirty is true and graphics mode
+ * is detected (no screen-put-char events available).
+ */
+function renderTextCapScreen() {
+    if (!textCapBuffer || !textCapDirty) return;
+    textCapDirty = false;
+
+    for (let r = 0; r < ROWS; r++) {
+        const el = document.getElementById("screen-line-" + r);
+        if (!el) continue;
+        const line = textCapRowToString(r);
+        const trimmed = line.trimEnd();
+        el.textContent = trimmed || "\u00A0";
+        el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (trimmed || "blank"));
+    }
+}
+
+/**
+ * Detect the TextCap TSR startup marker: ESC [ T C ]
+ * Returns true if the 5-byte marker has been fully received.
+ */
+const TC_MARKER = [0x1B, 0x5B, 0x54, 0x43, 0x5D]; /* ESC [ T C ] */
+let textCapMarkerPos = 0;
+
+function checkTextCapMarker(byte) {
+    if (byte === TC_MARKER[textCapMarkerPos]) {
+        textCapMarkerPos++;
+        if (textCapMarkerPos >= TC_MARKER.length) {
+            textCapMarkerPos = 0;
+            return true; /* marker fully matched */
+        }
+    } else {
+        textCapMarkerPos = 0;
+    }
+    return false;
+}
+
+/* ═══════════════════════════════════════════
+ * Transcript Capture — reads game's transcript file from disk
+ * ═══════════════════════════════════════════
+ *
+ * Instead of intercepting serial-port framing (which is fragile),
+ * we poll the actual FAT filesystem on the game disk. When the game
+ * writes to its transcript file, DOS allocates clusters and updates
+ * the FAT chain in real-time. The directory entry size stays 0 until
+ * the file is closed, but the cluster data is there.
+ *
+ * readFATFileByChain() follows the FAT chain regardless of the
+ * directory size field, reading all allocated cluster data.
+ */
+
+/**
+ * Read ALL cluster data for a file by following its FAT chain.
+ * Unlike readFATFile(), this ignores the directory entry's size field
+ * (which stays 0 until fclose). Instead it follows the cluster chain
+ * and reads every allocated cluster.
+ *
+ * Returns a Uint8Array of the raw cluster data, trimmed of trailing
+ * NUL bytes, or null if the file has no clusters allocated.
+ */
+function readFATFileByChain(img, geo, firstCluster) {
+    if (firstCluster < 2) return null;
+
+    const chunks = [];
+    let cluster = firstCluster;
+    let safety = 10000; /* prevent infinite loops on corrupt FAT */
+
+    while (cluster >= 2 && !isEOF(geo, cluster) && --safety > 0) {
+        const offset = geo.dataStart + (cluster - 2) * geo.bytesPerCluster;
+        chunks.push(img.slice(offset, offset + geo.bytesPerCluster));
+        cluster = readFATEntry(img, geo, cluster);
+    }
+
+    if (chunks.length === 0) return null;
+
+    /* Concatenate all cluster data */
+    const totalBytes = chunks.reduce((s, c) => s + c.length, 0);
+    const data = new Uint8Array(totalBytes);
+    let pos = 0;
+    for (const chunk of chunks) {
+        data.set(chunk, pos);
+        pos += chunk.length;
+    }
+
+    /* Trim trailing NUL bytes (unused space in last cluster) */
+    let end = data.length;
+    while (end > 0 && data[end - 1] === 0) end--;
+
+    return end > 0 ? data.slice(0, end) : null;
+}
+
+/**
+ * Poll the game disk for the transcript file.
+ * Called on a timer at the interval selected in the poll speed dropdown.
+ *
+ * Searches the root directory of the active disk for the filename
+ * in the transcript watch field, reads its cluster chain, compares
+ * against what we've already processed, and speaks any new text.
+ */
+function pollTranscriptFile() {
+    if (!emulator || !isReady) return;
+
+    const text = readTranscriptFromDisk();
+    if (text === null || text.length === 0) return;
+
+    /* Check if there's new content since our last read.
+     * If the file got SHORTER (game re-created instead of appending),
+     * reset and treat the entire file as new content. */
+    if (text.length < transcriptPollLastLength) {
+        console.log("Transcript file appears re-created (shorter). Resetting.");
+        transcriptPollLastLength = 0;
+    }
+    if (text.length <= transcriptPollLastLength) return;
+
+    const newText = text.slice(transcriptPollLastLength);
+    transcriptPollLastLength = text.length;
+
+    /* ── First data arrival: activate transcript mode ── */
+    if (!transcriptCapActive) {
+        transcriptCapActive = true;
+        console.log("Transcript file detected — transcript capture active");
+
+        /* If muting screen speech, kill any pending screen-change speech */
+        if (transcriptMuteScreenToggle.checked) {
+            clearTimeout(changeSettleTimer);
+            pendingChanges = [];
+            awaitingResponse = false;
+            window.speechSynthesis.cancel();
+        }
+
+        announce("Transcript connected. " + text.length + " bytes on disk.");
+    }
+
+    /* Reset the watchdog — fresh data just arrived */
+    resetTranscriptWatchdog();
+
+    /* ── Parse new text into lines ── */
+    const prevLineCount = transcriptLines.length;
+    let dirty = false;
+
+    for (let i = 0; i < newText.length; i++) {
+        const ch = newText[i];
+        if (ch === "\r") continue;
+
+        if (ch === "\n") {
+            transcriptLines.push(transcriptLineBuffer);
+            transcriptLineBuffer = "";
+            dirty = true;
+            continue;
+        }
+
+        transcriptLineBuffer += ch;
+
+        /* Word-wrap at column width */
+        if (transcriptLineBuffer.length >= COLS) {
+            transcriptLines.push(transcriptLineBuffer);
+            transcriptLineBuffer = "";
+            dirty = true;
+        }
+    }
+
+    if (!dirty) return;
+
+    updateTranscriptConnectionUI();
+
+    /* ── Optionally render transcript lines to the screen DOM ── */
+    if (transcriptReplaceScreenToggle.checked) {
+        const startIdx = Math.max(0, transcriptLines.length - ROWS);
+        const displayLines = transcriptLines.slice(startIdx);
+        if (transcriptLineBuffer.length > 0) {
+            displayLines.push(transcriptLineBuffer);
+        }
+
+        for (let r = 0; r < ROWS; r++) {
+            const lineText = (r < displayLines.length) ? displayLines[r] : "";
+            const el = document.getElementById("screen-line-" + r);
+            if (el) {
+                el.textContent = lineText || "\u00A0";
+                el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (lineText || "blank"));
+            }
+            prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
+        }
+    }
+
+    /* ── Optionally speak the new lines ── */
+    const newLines = transcriptLines.slice(prevLineCount);
+
+    if (transcriptAutoSpeakToggle.checked) {
+        const cleanText = newLines
+            .map(l => l.trim())
+            .filter(l => l.length > 0)
+            .join(". ");
+
+        if (cleanText) {
+            console.log("Transcript speech:", cleanText.substring(0, 100) + "...");
+            speak(cleanText);
+        }
+    }
+
+    /* Always add to response log and history for F7/F8 navigation */
+    if (newLines.length > 0) {
+        const filtered = newLines.filter(l => l.trim());
+        if (filtered.length > 0) {
+            const entry = { type: "response", lines: filtered };
+            responseLog.push(entry);
+            responseNavIndex = responseLog.length - 1;
+            updateHistNav();
+            for (const line of filtered) addToHistory(line, false);
+        }
+    }
+
+    /* Recording: capture transcript lines */
+    if (isRecording && newLines.length > 0) {
+        transcriptBuffer += newLines.join("\n") + "\n\n";
+        updateTranscriptUI();
+    }
+}
+
+/**
+ * Start polling the disk for the transcript file.
+ * Called when user clicks "Watch File" button.
+ */
+function startTranscriptPoll() {
+    if (transcriptPollTimer) return; /* already polling */
+    transcriptPollLastLength = 0;
+    transcriptLines = [];
+    transcriptLineBuffer = "";
+    const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
+    transcriptPollTimer = setInterval(pollTranscriptFile, ms);
+    updateTranscriptConnectionUI();
+    announce("Watching for " + (transcriptWatchFilename.value || "SCRIPT.TXT") +
+             " on disk. Type SCRIPT in the game to start.");
+}
+
+/**
+ * Stop polling and deactivate transcript capture.
+ */
+function stopTranscriptPoll() {
+    if (transcriptPollTimer) {
+        clearInterval(transcriptPollTimer);
+        transcriptPollTimer = null;
+    }
+    transcriptCapActive = false;
+    clearTimeout(transcriptWatchdog);
+    transcriptWatchdog = null;
+    /* Reset prevLines so refreshScreen picks up current screen state */
+    prevLines = new Array(ROWS).fill("");
+    updateTranscriptConnectionUI();
+    announce("Transcript watching stopped. Screen capture resumed.");
+}
+
+/**
+ * Restart the poll timer at the new speed (called on dropdown change).
+ */
+function restartTranscriptPoll() {
+    if (!transcriptPollTimer) return; /* not currently polling */
+    clearInterval(transcriptPollTimer);
+    const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
+    transcriptPollTimer = setInterval(pollTranscriptFile, ms);
+}
+
+/**
+ * Force a transcript flush by sending "script off" to close the file
+ * (flushing the C runtime buffer to disk), waiting briefly for the
+ * poll to pick up the data, then re-opening the transcript with
+ * "script <filename>". This is the workaround for the C runtime
+ * buffering — data only hits disk sectors when the file is closed.
+ *
+ * Note: with TEXTCAP v2.2's FCOMMIT-after-write, the C runtime flush
+ * now goes straight to disk. This function is mainly useful for reading
+ * any final unflushed C runtime buffer (data below the 512-byte threshold).
+ */
+async function flushTranscriptFile() {
+    if (!emulator || !isReady) return;
+    const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
+
+    announce("Flushing transcript...");
+
+    /* Close the transcript file — this forces fclose() → fflush() → disk write */
+    await typeToDOS("script off", true);
+
+    /* Wait for the game to process and DOS to flush disk buffers,
+     * then give our poll a chance to read the new data */
+    await new Promise(r => setTimeout(r, 1500));
+    pollTranscriptFile(); /* immediate extra poll */
+
+    /* Re-open the transcript. The game's SCRIPT command prompts for
+     * a filename interactively — it doesn't accept it as an argument.
+     * So we send "script" + Enter, wait for the prompt, then the name. */
+    await new Promise(r => setTimeout(r, 500));
+    await typeToDOS("script", true);
+    await new Promise(r => setTimeout(r, 1000));
+    await typeToDOS(fname, true);
+
+    announce("Transcript flushed and re-opened.");
+}
+
+/**
+ * Read the transcript file from disk and return its text content.
+ * Shared helper for test, speak-last, and polling functions.
+ * Returns null if file not found or empty.
+ */
+function readTranscriptFromDisk() {
+    if (!emulator || !isReady) return null;
+
+    const img = getDiskBytes();
+    if (!img) return null;
+
+    const geo = parseFATGeometry(img);
+    if (!geo) return null;
+
+    const files = parseFATDir(img, geo);
+    const target = (transcriptWatchFilename.value || "SCRIPT.TXT").toUpperCase().trim();
+
+    const file = files.find(f => f.fullName.toUpperCase() === target);
+    if (!file) return null;
+
+    /* Try cluster chain first (works even when dir size = 0) */
+    if (file.firstCluster >= 2) {
+        const data = readFATFileByChain(img, geo, file.firstCluster);
+        if (data && data.length > 0) {
+            return new TextDecoder("ascii").decode(data);
+        }
+    }
+
+    /* Fall back to directory size (works after fclose) */
+    if (file.size > 0) {
+        const data = readFATFile(img, geo, file);
+        if (data && data.length > 0) {
+            return new TextDecoder("ascii").decode(data);
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Test Read button: read the transcript file from disk and announce
+ * its size, first line, and last line. Useful for verifying that
+ * FCOMMIT is working and data is hitting the disk image.
+ */
+function testReadTranscript() {
+    const text = readTranscriptFromDisk();
+    if (text === null) {
+        const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
+        speak("File " + fname + " not found on disk, or has no data.");
+        return;
+    }
+
+    const lines = text.split("\n").filter(l => l.trim().length > 0);
+    const bytes = text.length;
+    const first = lines.length > 0 ? lines[0].trim() : "(empty)";
+    const last = lines.length > 0 ? lines[lines.length - 1].trim() : "(empty)";
+
+    const msg = bytes + " bytes, " + lines.length + " lines. " +
+                "First: " + first + ". Last: " + last + ".";
+    console.log("Test Read:", msg);
+    speak(msg);
+}
+
+/**
+ * Speak Last button: read the transcript file from disk and speak
+ * the last response (text after the final prompt line).
+ * Looks for the game prompt character to find response boundaries.
+ */
+function speakLastTranscript() {
+    const text = readTranscriptFromDisk();
+    if (text === null) {
+        speak("No transcript file found on disk.");
+        return;
+    }
+
+    const lines = text.split("\n").filter(l => l.trim().length > 0);
+    if (lines.length === 0) {
+        speak("Transcript file is empty.");
+        return;
+    }
+
+    /* Find the last prompt line (starts with > or the configured prompt char) */
+    const promptStr = promptCharInput.value || ">";
+    let lastPromptIdx = -1;
+    for (let i = lines.length - 1; i >= 0; i--) {
+        if (lines[i].trim().startsWith(promptStr)) {
+            lastPromptIdx = i;
+            break;
+        }
+    }
+
+    /* Extract response: everything after the last prompt, or last 10 lines */
+    let response;
+    if (lastPromptIdx >= 0 && lastPromptIdx < lines.length - 1) {
+        response = lines.slice(lastPromptIdx + 1);
+    } else if (lastPromptIdx === lines.length - 1) {
+        /* Prompt is the very last line — take a few lines before it */
+        const start = Math.max(0, lastPromptIdx - 5);
+        response = lines.slice(start, lastPromptIdx);
+    } else {
+        /* No prompt found — speak last few lines */
+        response = lines.slice(-5);
+    }
+
+    const cleanText = response.map(l => l.trim()).join(". ");
+    if (cleanText) {
+        speak(cleanText);
+    } else {
+        speak("No response found in transcript.");
+    }
+}
+
+/**
+ * Auto-flush cycle: triggered after each command when auto-flush is on.
+ * Sends "script off" to flush, reads the transcript, finds the response
+ * to the user's actual command (above the "script off" prompt), speaks it,
+ * then re-opens the transcript file.
+ *
+ * After flush the transcript looks like:
+ *   ...
+ *   >user command
+ *   response line 1
+ *   response line 2
+ *   >script off
+ *
+ * We want the text between the second-to-last prompt and the last prompt.
+ *
+ * TIMING: we need generous waits because typeToDOS sends chars at 30ms
+ * intervals, and the game needs time to process each command and write
+ * its response before we send the next one. The "Enter transcript file
+ * name:" prompt especially needs time before we send the filename.
+ */
+async function autoFlushCycle() {
+    if (!emulator || !isReady || autoFlushPending) return;
+    autoFlushPending = true;
+
+    /* Kill any pending/in-progress screen speech */
+    clearTimeout(changeSettleTimer);
+    pendingChanges = [];
+    awaitingResponse = false;
+    window.speechSynthesis.cancel();
+
+    const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
+    const d1 = parseInt(transcriptFlushD1.value, 10) || 600;
+    const d2 = parseInt(transcriptFlushD2.value, 10) || 600;
+    const d3 = parseInt(transcriptFlushD3.value, 10) || 400;
+
+    /* ═══ Phase 1: Flush to disk ═══
+     * Send "script off" to close the file, wait for game + disk flush. */
+    await typeToDOS("script off", true);
+    await new Promise(r => setTimeout(r, d1));
+
+    /* ═══ Phase 2: Read + Parse + Speak (no awaits — immediate) ═══
+     * This is the fast path. Read from disk, extract response, speak.
+     * Speech starts while Phase 3 re-opens the file in background. */
+    const text = readTranscriptFromDisk();
+
+    if (text) {
+        /* Update shared transcript state for read mode navigation */
+        transcriptLines = [];
+        transcriptLineBuffer = "";
+        for (let i = 0; i < text.length; i++) {
+            const ch = text[i];
+            if (ch === "\r") continue;
+            if (ch === "\n") {
+                transcriptLines.push(transcriptLineBuffer);
+                transcriptLineBuffer = "";
+                continue;
+            }
+            transcriptLineBuffer += ch;
+            if (transcriptLineBuffer.length >= COLS) {
+                transcriptLines.push(transcriptLineBuffer);
+                transcriptLineBuffer = "";
+            }
+        }
+        transcriptPollLastLength = text.length;
+        transcriptCapActive = true;
+
+        /* Render last ROWS lines to DOM for read mode if checked */
+        if (transcriptReplaceScreenToggle.checked) {
+            const startIdx = Math.max(0, transcriptLines.length - ROWS);
+            const displayLines = transcriptLines.slice(startIdx);
+            if (transcriptLineBuffer.length > 0) displayLines.push(transcriptLineBuffer);
+            for (let r = 0; r < ROWS; r++) {
+                const lineText = (r < displayLines.length) ? displayLines[r] : "";
+                const el = document.getElementById("screen-line-" + r);
+                if (el) {
+                    el.textContent = lineText || "\u00A0";
+                    el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (lineText || "blank"));
+                }
+                prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
+            }
+        }
+
+        /* Extract the last response (between 2nd-to-last and last prompt).
+         * The last prompt is ">script off" (our flush command). */
+        const nonEmpty = text.split("\n").filter(l => l.trim().length > 0);
+        const promptStr = promptCharInput.value || ">";
+
+        const promptPositions = [];
+        for (let i = 0; i < nonEmpty.length; i++) {
+            if (nonEmpty[i].trim().startsWith(promptStr)) {
+                promptPositions.push(i);
+            }
+        }
+
+        let responseLines = [];
+        if (promptPositions.length >= 2) {
+            const prevPrompt = promptPositions[promptPositions.length - 2];
+            const lastPrompt = promptPositions[promptPositions.length - 1];
+            responseLines = nonEmpty.slice(prevPrompt + 1, lastPrompt);
+        } else if (promptPositions.length === 1) {
+            const candidates = nonEmpty.slice(promptPositions[0] + 1);
+            if (candidates.length > 0 &&
+                candidates[candidates.length - 1].trim().toLowerCase() === "script off") {
+                candidates.pop();
+            }
+            responseLines = candidates;
+        } else {
+            responseLines = nonEmpty.slice(0, -1);
+        }
+
+        /* Filter out "Transcript off." confirmation */
+        responseLines = responseLines.filter(l =>
+            l.trim().toLowerCase() !== "transcript off." &&
+            l.trim().toLowerCase() !== "transcript off");
+
+        const cleanText = responseLines.map(l => l.trim()).filter(l => l.length > 0).join(". ");
+
+        if (cleanText) {
+            window.speechSynthesis.cancel();
+            console.log("Auto-flush response:", cleanText.substring(0, 120));
+            speak(cleanText);
+
+            const filtered = responseLines.filter(l => l.trim());
+            if (filtered.length > 0) {
+                const entry = { type: "response", lines: filtered.map(l => l.trim()) };
+                responseLog.push(entry);
+                responseNavIndex = responseLog.length - 1;
+                updateHistNav();
+                for (const line of filtered) addToHistory(line.trim(), false);
+            }
+
+            if (isRecording) {
+                transcriptBuffer += responseLines.join("\n") + "\n\n";
+                updateTranscriptUI();
+            }
+        }
+    }
+
+    /* ═══ Phase 3: Re-open transcript (runs while speech is playing) ═══
+     * Don't cancel speech during re-open — the user is listening. */
+    await typeToDOS("script", true);
+    await new Promise(r => setTimeout(r, d2));
+
+    /* Only clear pending screen changes, do NOT cancel speech */
+    clearTimeout(changeSettleTimer);
+    pendingChanges = [];
+
+    await typeToDOS(fname, true);
+    await new Promise(r => setTimeout(r, d3));
+
+    clearTimeout(changeSettleTimer);
+    pendingChanges = [];
+
+    autoFlushPending = false;
+}
+
+/**
+ * Schedule an auto-flush after the configured delay.
+ * Called from sendCommand() when auto-flush is enabled.
+ * Cancels any previously scheduled flush (so rapid commands
+ * don't pile up flush cycles).
+ */
+function scheduleAutoFlush() {
+    clearTimeout(autoFlushTimer);
+    const delay = parseInt(transcriptFlushDelay.value, 10) || 500;
+    autoFlushTimer = setTimeout(autoFlushCycle, delay);
+}
+
+function rowToString(r) {
+    /*
+     * Screen content source priority:
+     * 1. Transcript capture — only when "Replace screen" is checked
+     * 2. TextCap screen buffer (ANSI-positioned INT 10h text via serial)
+     * 3. VGA screen buffer (screen-put-char events in text mode)
+     */
+    if (transcriptCapActive && transcriptReplaceScreenToggle.checked
+        && transcriptLines.length > 0) {
+        const startIdx = Math.max(0, transcriptLines.length - ROWS);
+        const displayLines = transcriptLines.slice(startIdx);
+        if (transcriptLineBuffer.length > 0) {
+            displayLines.push(transcriptLineBuffer);
+        }
+        if (r < displayLines.length) {
+            return displayLines[r].padEnd(COLS).slice(0, COLS);
+        }
+        return " ".repeat(COLS);
+    }
+
+    if (textCapActive && textCapBuffer && textCapBuffer[r]) {
+        return textCapRowToString(r);
+    }
+
+    let s = "";
+    for (let c = 0; c < COLS; c++) {
+        const code = screenBuffer[r][c];
+        s += (code < CP437.length) ? CP437[code] : " ";
+    }
+    return s;
+}
+
+/** Test if a line is purely box-drawing decoration */
+function isDecor(text) { return BOX_RE.test(text.trim()); }
+
+/** Test if a line starts with the ♦► game prompt */
+/* Regex to strip box-drawing border chars from line edges */
+const BORDER_STRIP_RE = /^[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580│║─═]+/;
+
+/**
+ * Strip box-drawing border characters from the start of a line.
+ * This handles games like Mindwheel that wrap text in ║...║ borders.
+ */
+function stripBorder(text) {
+    return text.replace(BORDER_STRIP_RE, "");
+}
+
+/** Test if a line contains the game prompt (after stripping borders) */
+function isPromptLine(text) { return stripBorder(text).startsWith(getPromptStr()); }
+
+/** Filter lines for speech: remove blanks and optionally borders */
+/** Regex to strip border chars from the END of a line */
+const BORDER_STRIP_END_RE = /[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580│║─═]+$/;
+
+/** Strip box-drawing border characters from both sides of a line */
+function stripBorderBoth(text) {
+    return text.replace(BORDER_STRIP_RE, "").replace(BORDER_STRIP_END_RE, "");
+}
+
+/** Filter lines for speech: remove blanks, optionally borders, and strip border chars */
+function filterForSpeech(lines) {
+    const skip = skipDecorToggle.checked;
+    return lines.map(t => stripBorderBoth(t)).filter(t => {
+        if (!t) return false;
+        if (skip && isDecor(t)) return false;
+        return true;
+    });
+}
+
+/** Main screen refresh (every 200ms) */
+function refreshScreen() {
+    /*
+     * When transcript capture is active, behavior depends on checkboxes:
+     * - "Replace screen" checked: skip DOM updates (poll handles them)
+     * - "Mute screen speech" checked: skip speech (poll handles it)
+     * Both off: refreshScreen runs normally alongside transcript polling.
+     */
+
+    /* If transcript is replacing the screen, don't overwrite its DOM content */
+    if (transcriptCapActive && transcriptReplaceScreenToggle.checked) return;
+
+    let anyChanged = false;
+    for (let r = 0; r < ROWS; r++) {
+        const cur = rowToString(r);
+        if (cur === prevLines[r]) continue;
+        anyChanged = true;
+        const el = document.getElementById("screen-line-" + r);
+        if (el) {
+            el.textContent = cur;
+            const t = cur.trim();
+            el.setAttribute("aria-label", "Line "+(r+1)+": "+(t||"blank"));
+        }
+        const trimmed = cur.trim();
+        if (trimmed) pendingChanges.push(trimmed);
+        prevLines[r] = cur;
+    }
+    if (anyChanged) {
+        clearTimeout(changeSettleTimer);
+        changeSettleTimer = setTimeout(onScreenSettled, 700);
+    }
+}
+
+/**
+ * Fired 700ms after the last screen change.
+ * Deduplicates, logs, and optionally speaks.
+ */
+function onScreenSettled() {
+    if (!pendingChanges.length) return;
+
+    /* Mute screen speech: either explicitly checked, or during auto-flush.
+     * The mute checkbox works independently — you can mute screen speech
+     * without having transcript watching enabled. */
+    if (transcriptMuteScreenToggle.checked || autoFlushPending) {
+        pendingChanges = [];
+        awaitingResponse = false;
+        return;
+    }
+
+    /* De-dup consecutive identical lines */
+    const unique = [];
+    for (const line of pendingChanges) {
+        if (!unique.length || unique[unique.length - 1] !== line) unique.push(line);
+    }
+
+    const speakable = filterForSpeech(unique);
+    lastResponseLines = speakable.slice();
+
+    /* Add to responseLog and visible history */
+    if (speakable.length > 0) {
+        const entry = { type: "response", lines: speakable.slice() };
+        responseLog.push(entry);
+        responseNavIndex = responseLog.length - 1;
+        updateHistNav();
+
+        for (const line of speakable) addToHistory(line, false);
+    }
+
+    /* Transcript recording: capture all unique non-blank lines */
+    if (isRecording && unique.length > 0) {
+        transcriptBuffer += unique.join("\n") + "\n\n";
+        updateTranscriptUI();
+    }
+
+    /* Auto-speak: use smart prompt detection for command responses */
+    if (isReady && speakable.length > 0) {
+        if (speakAfterCmdToggle.checked && awaitingResponse) {
+            /* Use ♦► prompt detection for cleaner response extraction */
+            const smartLines = getLastResponseFromScreen();
+            speak(smartLines.length ? smartLines.join(". ") : speakable.join(". "));
+        } else if (autoSpeakToggle.checked) {
+            speak(speakable.join(". "));
+        }
+    }
+
+    pendingChanges = [];
+    awaitingResponse = false;
+}
+
+/**
+ * Smart "last response" extraction using ♦► prompt detection.
+ * Scans the current screen for prompt lines.
+ * The response is text between the second-to-last and last prompt lines.
+ * If only one prompt line exists, response is everything above it.
+ */
+function getLastResponseFromScreen() {
+    const lines = [];
+    for (let r = 0; r < ROWS; r++) lines.push(rowToString(r));
+
+    /* Find all lines that contain the game prompt (after stripping borders) */
+    const promptIndices = [];
+    for (let i = 0; i < lines.length; i++) {
+        if (isPromptLine(lines[i])) promptIndices.push(i);
+    }
+
+    if (promptIndices.length === 0) {
+        /* No prompts found — return all non-blank lines */
+        return filterForSpeech(lines.map(l => l.trim()));
+    }
+
+    const depthMode = promptDepthSelect.value;
+    let startRow, endRow;
+
+    if (depthMode === "below") {
+        /*
+         * "After last prompt" mode (Mindwheel style):
+         * Return everything from the line after the last prompt to the end.
+         * Good for games where the response follows the prompt line.
+         */
+        startRow = promptIndices[promptIndices.length - 1] + 1;
+        endRow = ROWS;
+    } else {
+        /*
+         * "Between last two prompts" mode (T-Zero style):
+         * Response is between the second-to-last and last prompt lines.
+         * Falls back to "above" if only one prompt is visible.
+         */
+        if (promptIndices.length >= 2) {
+            startRow = promptIndices[promptIndices.length - 2] + 1;
+            endRow = promptIndices[promptIndices.length - 1];
+        } else {
+            startRow = 0;
+            endRow = promptIndices[0];
+        }
+    }
+
+    const result = [];
+    for (let r = startRow; r < endRow; r++) {
+        result.push(lines[r].trim());
+    }
+    return filterForSpeech(result);
+}
+
+/* ═══════════════════════════════════════════
+ * History Log & Navigation
+ * ═══════════════════════════════════════════ */
+
+function addToHistory(text, isCmd) {
+    if (historyLog.children.length === 1 &&
+        historyLog.firstChild.textContent.startsWith("History")) {
+        historyLog.innerHTML = "";
+    }
+    const d = document.createElement("div");
+    d.className = "history-entry" + (isCmd ? " command" : "");
+    d.setAttribute("tabindex", "-1");
+
+    /* Mark prompt lines distinctly */
+    if (isPromptLine(text)) {
+        d.className += " prompt-marker";
+    }
+    d.textContent = isCmd ? "> " + text : text;
+    historyLog.appendChild(d);
+    historyLog.scrollTop = historyLog.scrollHeight;
+}
+
+/** Navigate to a specific response in the responseLog */
+function navToResponse(index) {
+    if (index < 0 || index >= responseLog.length) return;
+    responseNavIndex = index;
+    updateHistNav();
+
+    const entry = responseLog[index];
+    const text = entry.lines.join(". ");
+    speak((entry.type === "command" ? "Command: " : "") + text);
+}
+
+function navPrevResponse() {
+    if (responseNavIndex > 0) navToResponse(responseNavIndex - 1);
+    else speak("At the beginning of history.");
+}
+
+function navNextResponse() {
+    if (responseNavIndex < responseLog.length - 1) navToResponse(responseNavIndex + 1);
+    else speak("At the end of history.");
+}
+
+function updateHistNav() {
+    histPosition.textContent = responseLog.length > 0
+        ? "Response " + (responseNavIndex + 1) + " of " + responseLog.length
+        : "";
+    histPrevBtn.disabled = responseNavIndex <= 0;
+    histNextBtn.disabled = responseNavIndex >= responseLog.length - 1;
+}
+
+/* ═══════════════════════════════════════════
+ * Emulator
+ * ═══════════════════════════════════════════ */
+
+function bootEmulator(autoLaunch) {
+    if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
+        setStatus("error", "v86 not loaded. Serve via HTTP (use start.command).");
+        return;
+    }
+
+    /* Determine which disk image to use */
+    const selectedImg = gameSelect.value;
+    if (!selectedImg && !customFloppyBlob) {
+        setStatus("error", "No game disk image selected.");
+        return;
+    }
+
+    setStatus("loading", "Loading BIOS and FreeDOS...");
+    bootBtn.disabled = true; bootPromptBtn.disabled = true;
+    initBuffer(); initScreenDOM();
+
+    /* Build disk config based on disk type (floppy → fdb, hard disk → hda) */
+    const isHDD = diskTypeSelect.value === "hdd";
+    const diskConfig = customFloppyBlob
+        ? { buffer: customFloppyBlob }
+        : { url: selectedImg };
+
+    const emulatorConfig = {
+        wasm_path: "v86.wasm",
+        bios: { url: "seabios.bin" }, vga_bios: { url: "vgabios.bin" },
+        fda: { url: "freedos722.img" },
+        boot_order: 801,  /* Floppy first, then HDD — matches v86 default for fda */
+        screen_container: document.getElementById("v86-screen-container"),
+        memory_size: 32 * 1024 * 1024, /* 32MB for larger games */
+        autostart: true,
+    };
+
+    /* Mount game disk as floppy B: or hard disk C: */
+    if (isHDD) {
+        emulatorConfig.hda = diskConfig;
+    } else {
+        emulatorConfig.fdb = diskConfig;
+    }
+
+    const Ctor = (typeof V86Starter !== "undefined") ? V86Starter : V86;
+    try {
+        emulator = new Ctor(emulatorConfig);
+    } catch (err) {
+        setStatus("error", "Emulator failed: " + err.message);
+        bootBtn.disabled = false; bootPromptBtn.disabled = false;
+        return;
+    }
+    setStatus("loading", "Booting FreeDOS... please wait (15-30 sec).");
+
+    emulator.add_listener("screen-put-char", function(d) {
+        const row = d[0], col = d[1], ch = d[2];
+        if (row >= 0 && row < ROWS && col >= 0 && col < COLS) screenBuffer[row][col] = ch;
+    });
+
+    /* Capture serial port output — serves two purposes:
+     * 1. Printer redirect (MODE LPT1:=COM1:) for old-style transcript capture
+     * 2. TextCap INT 10h output: ANSI-positioned text for graphics-mode games
+     *
+     * Transcript capture now reads from disk instead of serial framing.
+     * The TSR may still emit STX/ETX bytes from its INT 21h hook,
+     * but we simply ignore them here — they're harmless.
+     */
+    emulator.add_listener("serial0-output-byte", function(byte) {
+        /* Check for TextCap startup marker (ESC[TC]) */
+        if (!textCapActive && checkTextCapMarker(byte)) {
+            textCapActive = true;
+            initTextCapBuffer();
+            console.log("TextCap TSR detected — serial text capture active");
+            announce("Text capture active. Game text will be read via serial port.");
+            return;
+        }
+
+        /* If TextCap is active, route all printable data to the ANSI parser.
+         * Skip STX (0x02) and ETX (0x03) which may leak from the TSR's
+         * INT 21h hook — they're not needed since we read transcripts
+         * directly from disk now. */
+        if (textCapActive) {
+            if (byte === 0x02 || byte === 0x03) return; /* skip framing bytes */
+            textCapParseByte(byte);
+            return;
+        }
+
+        /* Original serial capture for printer redirect (no TextCap) */
+        if (byte === 13) return;
+        if (byte === 10) { serialBuffer += "\n"; return; }
+        if (byte >= 32 && byte < 127) serialBuffer += String.fromCharCode(byte);
+    });
+
+    let checks = 0;
+    const checker = setInterval(() => {
+        checks++;
+        let found = false;
+        for (let r = ROWS - 1; r >= ROWS - 5 && r >= 0; r--) {
+            const l = rowToString(r).trim();
+            if (/[A-Z]:\\>?\s*$/.test(l) || l.endsWith(">")) { found = true; break; }
+        }
+        if (found || checks > 200) {
+            clearInterval(checker);
+            pendingChanges = []; lastResponseLines = [];
+
+            /*
+             * CRITICAL VoiceOver fix: destroy v86's browser keyboard adapter.
+             * v86 listens on window for keydown, keyup, blur, AND input events.
+             * VoiceOver bypasses keydown/keyup entirely and fires input events
+             * at the system level, which v86 catches and sends to DOS — causing
+             * all text to appear uppercase/shifted.
+             *
+             * keyboard_adapter.destroy() removes ALL four window listeners.
+             * Our code uses keyboard_send_scancodes() which calls bus.send()
+             * directly, and keyboard_send_text() which calls simulate_char()
+             * — both still function normally because they use closure-captured
+             * bus references, not the removed window listeners.
+             */
+            if (emulator.keyboard_adapter && emulator.keyboard_adapter.destroy) {
+                emulator.keyboard_adapter.destroy();
+            }
+
+            enableInput();
+
+            /* Try to redirect LPT1 → COM1 so SCRIPT command output gets captured */
+            setTimeout(async () => {
+                await typeToDOS("MODE LPT1:=COM1:", true);
+
+                if (autoLaunch) {
+                    const autoCmd = autorunInput.value.trim();
+                    if (autoCmd) {
+                        /* Floppy games are on B:, hard disk games are on C: */
+                        const gameDrive = diskTypeSelect.value === "hdd" ? "C:" : "B:";
+
+                        /*
+                         * If this game uses graphics mode, load TEXTCAP.COM first.
+                         * The TSR hooks INT 10h and mirrors text output to COM1,
+                         * giving us serial-based text capture for screen reader access.
+                         * TEXTCAP.COM lives on the FreeDOS boot floppy (A:).
+                         */
+                        const preset = KNOWN_GAMES[gameSelect.value];
+                        if (preset && preset.textcap) {
+                            setStatus("ready", "DOS booted. Loading text capture TSR...");
+                            await typeToDOS("A:\\TEXTCAP.COM", true);
+                            /* Wait for TSR to install and print its banner */
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+
+                        setStatus("ready", "DOS booted. Launching game...");
+                        await typeToDOS(gameDrive, true);
+                        /* Wait for drive change to complete */
+                        await new Promise(r => setTimeout(r, 1500));
+                        await typeToDOS(autoCmd, true);
+                        setStatus("ready", "Game launched! Type commands below.");
+                    } else {
+                        const driveHint = diskTypeSelect.value === "hdd" ? "C:" : "B:";
+                        setStatus("ready", "DOS booted. Game disk on " + driveHint + " drive.");
+                    }
+                } else {
+                    const driveHint = diskTypeSelect.value === "hdd" ? "C:" : "B:";
+                    setStatus("ready", "DOS booted. Game disk on " + driveHint + " drive. Type " + driveHint + " then DIR to browse.");
+                }
+            }, 500);
+        }
+        if (checks % 8 === 0 && checks <= 200) setStatus("loading", "Booting FreeDOS" + ".".repeat((checks/8)%4+1));
+    }, 500);
+
+    refreshTimer = setInterval(refreshScreen, 200);
+
+    /*
+     * Graphics mode detection: some games (e.g. Time Quest) run in EGA/VGA
+     * graphics mode where screen-put-char never fires. Detect this by
+     * monitoring canvas size and character event recency, then warn the user.
+     */
+    let lastCharEventTime = Date.now();
+    emulator.add_listener("screen-put-char", function() { lastCharEventTime = Date.now(); });
+
+    let wasGraphicsMode = false;
+    setInterval(function() {
+        const container = document.getElementById("v86-screen-container");
+        const canvas = container ? container.querySelector("canvas") : null;
+        if (!canvas) return;
+
+        const w = canvas.width, h = canvas.height;
+        /* Known text-mode canvas sizes in v86 */
+        const textSizes = [[720,400],[640,400],[300,150],[720,350]];
+        const isTextSize = textSizes.some(function(s) { return s[0] === w && s[1] === h; });
+        const hasRecentChars = (Date.now() - lastCharEventTime) < 5000;
+
+        if (!isTextSize && !hasRecentChars && w > 0 && h > 0) {
+            if (!wasGraphicsMode) {
+                wasGraphicsMode = true;
+
+                if (textCapActive) {
+                    /* TextCap is running — we have serial text capture! */
+                    announce("Graphics mode detected. Text capture TSR is active — game text will be read via serial port.");
+                } else {
+                    /* No TextCap — show the static fallback message */
+                    const gLines = [
+                        "GRAPHICS MODE DETECTED — Screen reader limited",
+                        "",
+                        "This game uses a graphical display.",
+                        "Text cannot be automatically read from the screen.",
+                        "",
+                        "You can still type commands in the input box.",
+                        "If the game has a text prompt, typed commands",
+                        "will be sent to it.",
+                        "",
+                        "Press F2 to hear this message again.",
+                        "Press Escape in game to skip title screens.",
+                    ];
+                    for (let r = 0; r < ROWS; r++) {
+                        const el = document.getElementById("screen-line-" + r);
+                        if (el) {
+                            const txt = r < gLines.length ? gLines[r] : "";
+                            el.textContent = txt || "\u00A0";
+                            el.setAttribute("aria-label", "Line " + (r+1) + ": " + (txt || "blank"));
+                        }
+                    }
+                    announce("Game is in graphics mode. Screen reader access is limited but commands can still be typed.");
+                }
+            }
+
+            /*
+             * When TextCap is active in graphics mode, periodically render
+             * the serial text buffer to the accessible screen. This replaces
+             * the VGA screen-put-char data that isn't available in graphics mode.
+             * Disabled when transcript capture is active — the transcript
+             * handler owns the screen in that mode.
+             */
+            if (textCapActive && textCapDirty && !transcriptCapActive) {
+                renderTextCapScreen();
+            }
+        } else if (hasRecentChars) {
+            wasGraphicsMode = false;
+        }
+    }, 3000);
+}
+
+/* ═══════════════════════════════════════════
+ * Commands
+ * ═══════════════════════════════════════════ */
+
+/**
+ * Low-level: drip-feed text to DOS one character at a time.
+ * Returns a Promise that resolves after all chars + optional Enter are sent.
+ * This avoids overflowing the DOS keyboard buffer (typically 15-16 chars).
+ *
+ * Before sending any characters, we release all modifier keys (Shift, Ctrl,
+ * Alt) to clear any stuck state. This happens when v86's window-level
+ * keydown handler captures a modifier press, but our stopPropagation on
+ * the input field blocks the corresponding keyup from reaching v86.
+ */
+const CHAR_DELAY_MS = 30; /* ms between each character sent to DOS */
+
+/* Break (release) scancodes for modifier keys */
+const MODIFIER_RELEASE = [
+    0xAA,   /* Left Shift break */
+    0xB6,   /* Right Shift break */
+    0x9D,   /* Left Ctrl break */
+    0xB8,   /* Left Alt break */
+];
+
+function typeToDOS(text, sendEnterAfter) {
+    return new Promise(resolve => {
+        if (!emulator) { resolve(); return; }
+        if (!text.length && !sendEnterAfter) { resolve(); return; }
+
+        /* Release any stuck modifier keys before sending characters */
+        emulator.keyboard_send_scancodes(MODIFIER_RELEASE);
+
+        for (let i = 0; i < text.length; i++) {
+            setTimeout(() => emulator.keyboard_send_text(text[i]), i * CHAR_DELAY_MS);
+        }
+
+        const afterChars = text.length * CHAR_DELAY_MS + 50;
+        if (sendEnterAfter) {
+            setTimeout(() => {
+                emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+                setTimeout(resolve, 100);
+            }, afterChars);
+        } else {
+            setTimeout(resolve, afterChars);
+        }
+    });
+}
+
+/**
+ * Send a command to DOS with proper character pacing.
+ * Logs to history and responseLog.
+ */
+function sendCommand(text) {
+    if (!emulator) return;
+    awaitingResponse = true;
+    pendingChanges = [];
+
+    typeToDOS(text, true);
+
+    if (text.trim()) {
+        commandHistory.push(text);
+        historyIndex = -1;
+        addToHistory(text, true);
+        responseLog.push({ type: "command", lines: [text] });
+
+        /* Auto-flush: after each command, schedule a flush cycle
+         * to read the response from the transcript file on disk */
+        if (transcriptAutoFlushToggle.checked && !autoFlushPending) {
+            scheduleAutoFlush();
+        }
+    }
+}
+
+function sendEnter() {
+    if (!emulator) return;
+    awaitingResponse = true; pendingChanges = [];
+    emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+}
+
+/* ═══════════════════════════════════════════
+ * Transcript Recording
+ * ═══════════════════════════════════════════ */
+
+function updateTranscriptUI() {
+    const combined = getCombinedTranscript();
+    const hasData = combined.length > 0;
+    downloadTranscriptBtn.style.display = hasData ? "" : "none";
+    downloadTranscriptBtn.disabled = !hasData;
+    clearTranscriptBtn.style.display = hasData ? "" : "none";
+    clearTranscriptBtn.disabled = !hasData;
+    transcriptStats.style.display = hasData ? "" : "none";
+    transcriptPreview.style.display = hasData ? "" : "none";
+    if (hasData) {
+        const lines = combined.split("\n").length;
+        const bytes = new Blob([combined]).size;
+        transcriptStats.textContent = lines + " lines, " + (bytes / 1024).toFixed(1) + " KB";
+        /* Show tail in preview */
+        const tail = combined.length > 500 ? "..." + combined.slice(-500) : combined;
+        transcriptPreview.textContent = tail;
+        transcriptPreview.scrollTop = transcriptPreview.scrollHeight;
+    }
+}
+
+function getCombinedTranscript() {
+    let result = transcriptBuffer;
+    if (serialBuffer.length > 0) {
+        result += "\n--- Printer Output (captured from serial redirect) ---\n";
+        result += serialBuffer;
+    }
+    /* Include clean transcript from game's SCRIPT command if available */
+    if (transcriptLines.length > 0) {
+        result += "\n--- Game Transcript (captured from file writes via TextCap) ---\n";
+        result += transcriptLines.join("\n");
+        if (transcriptLineBuffer.length > 0) {
+            result += "\n" + transcriptLineBuffer;
+        }
+    }
+    return result;
+}
+
+function downloadTranscript() {
+    const text = getCombinedTranscript();
+    if (!text) return;
+    triggerDownload(
+        new Uint8Array(new TextEncoder().encode(text)),
+        transcriptFilename.value || "transcript.txt",
+        "text/plain"
+    );
+}
+
+function clearTranscript() {
+    transcriptBuffer = "";
+    serialBuffer = "";
+    transcriptLines = [];
+    transcriptLineBuffer = "";
+    transcriptPollLastLength = 0;
+    updateTranscriptUI();
+    speak("Transcript cleared.");
+}
+
+/**
+ * Update the transcript capture connection status UI.
+ * Three states: Idle (not polling), Watching (polling but no data yet),
+ * Connected (transcript data is flowing).
+ */
+function updateTranscriptConnectionUI() {
+    if (!transcriptCapState) return;
+    const isPolling = !!transcriptPollTimer;
+
+    if (transcriptCapActive) {
+        transcriptCapState.textContent = "Connected";
+        transcriptCapState.style.color = "var(--success, #2d8a4e)";
+        transcriptCapInfo.textContent = transcriptLines.length + " lines captured";
+    } else if (isPolling) {
+        transcriptCapState.textContent = "Watching";
+        transcriptCapState.style.color = "var(--warning, #b58900)";
+        transcriptCapInfo.textContent = "Polling disk for " +
+            (transcriptWatchFilename.value || "SCRIPT.TXT") + "...";
+    } else {
+        transcriptCapState.textContent = "Idle";
+        transcriptCapState.style.color = "var(--dim, #888)";
+        transcriptCapInfo.textContent = "Type SCRIPT in the game, then click Watch.";
+    }
+
+    /* Show/hide buttons based on state */
+    transcriptWatchBtn.style.display = isPolling ? "none" : "";
+    transcriptFlushBtn.style.display = isPolling ? "" : "none";
+    transcriptDisconnectBtn.style.display = isPolling ? "" : "none";
+}
+
+/**
+ * Reset the transcript watchdog timer. Called whenever fresh transcript
+ * data arrives. If no data arrives for TRANSCRIPT_TIMEOUT_MS, the
+ * watchdog fires and falls back to INT 10h screen capture but keeps
+ * polling — data may arrive later when the C runtime flushes.
+ */
+function resetTranscriptWatchdog() {
+    clearTimeout(transcriptWatchdog);
+    transcriptWatchdog = setTimeout(function() {
+        if (transcriptCapActive) {
+            console.warn("Transcript watchdog fired — no data for " +
+                         (TRANSCRIPT_TIMEOUT_MS / 1000) + "s, falling back");
+            transcriptCapActive = false;
+            prevLines = new Array(ROWS).fill("");
+            updateTranscriptConnectionUI();
+            announce("Transcript timed out. Still watching — will reconnect if new data appears.");
+            /* Note: we do NOT stop the poll timer here. The file might
+             * get more data later (e.g. after a long in-game cutscene). */
+        }
+    }, TRANSCRIPT_TIMEOUT_MS);
+}
+
+function toggleRecording() {
+    isRecording = !isRecording;
+    recordBtn.textContent = isRecording ? "Stop Recording" : "Start Recording";
+    recordBtn.className = isRecording ? "btn-danger btn-sm" : "btn-success btn-sm";
+    /* Show/hide REC badge on the section summary */
+    const summary = document.querySelector("#section-transcript > summary");
+    const badge = summary.querySelector(".recording-badge");
+    if (isRecording) {
+        if (!badge) {
+            const b = document.createElement("span");
+            b.className = "recording-badge";
+            b.textContent = "REC";
+            summary.appendChild(b);
+        }
+        speak("Recording started.");
+    } else {
+        if (badge) badge.remove();
+        speak("Recording stopped.");
+    }
+}
+
+/* ═══════════════════════════════════════════
+ * VI-like Reading Mode
+ * ═══════════════════════════════════════════ */
+
+/** Switch between insert and read modes */
+function setMode(mode) {
+    keyMode = mode;
+    modeIndicator.textContent = mode.toUpperCase();
+    modeIndicator.className = mode;
+    if (mode === "insert") {
+        commandInput.focus();
+        clearReadingCursor();
+        speak("Insert mode", true);
+    } else {
+        /* Blur the input so keystrokes don't leak into the command box */
+        commandInput.blur();
+        /* Start at first non-blank line */
+        const firstNB = findFirstNonBlankLine();
+        if (firstNB >= 0) readRow = firstNB;
+        readCol = 0;
+        updateReadingCursor();
+        speakCurrentLine();
+    }
+}
+
+function findFirstNonBlankLine() {
+    for (let r = 0; r < ROWS; r++) if (rowToString(r).trim()) return r;
+    return 0;
+}
+
+function findLastNonBlankLine() {
+    for (let r = ROWS - 1; r >= 0; r--) if (rowToString(r).trim()) return r;
+    return 0;
+}
+
+function clearReadingCursor() {
+    document.querySelectorAll(".screen-line.reading-cursor").forEach(el => el.classList.remove("reading-cursor"));
+}
+
+function updateReadingCursor() {
+    clearReadingCursor();
+    const el = document.getElementById("screen-line-" + readRow);
+    if (el) { el.classList.add("reading-cursor"); el.focus(); }
+}
+
+function speakCurrentLine() {
+    const text = stripBorderBoth(rowToString(readRow));
+    speak(text || "blank line");
+}
+
+function speakCharAtCursor() {
+    const line = rowToString(readRow);
+    const ch = (readCol < line.length) ? line[readCol] : "end of line";
+    speak(ch === " " ? "space" : ch);
+}
+
+function getCurrentWord() {
+    const line = rowToString(readRow);
+    let start = readCol, end = readCol;
+    while (start > 0 && line[start - 1] !== " ") start--;
+    while (end < line.length && line[end] !== " ") end++;
+    const word = line.slice(start, end).trim();
+    return { word: word || "space", start, end };
+}
+
+/** Handle keydown events in READ mode */
+function handleReadKey(e) {
+    const key = e.key;
+    switch (key) {
+        case "i": case "Escape":
+            e.preventDefault(); setMode("insert"); break;
+        case "j": /* Down one line */
+            e.preventDefault();
+            if (readRow < ROWS - 1) readRow++;
+            readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
+        case "k": /* Up one line */
+            e.preventDefault();
+            if (readRow > 0) readRow--;
+            readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
+        case "l": /* Right one char */
+            e.preventDefault();
+            if (readCol < COLS - 1) readCol++;
+            speakCharAtCursor(); break;
+        case "h": /* Left one char */
+            e.preventDefault();
+            if (readCol > 0) readCol--;
+            speakCharAtCursor(); break;
+        case "w": { /* Next word */
+            e.preventDefault();
+            const line = rowToString(readRow);
+            while (readCol < COLS && line[readCol] !== " ") readCol++;
+            while (readCol < COLS && line[readCol] === " ") readCol++;
+            if (readCol >= COLS) readCol = COLS - 1;
+            speak(getCurrentWord().word); break;
+        }
+        case "b": { /* Previous word */
+            e.preventDefault();
+            const line = rowToString(readRow);
+            while (readCol > 0 && line[readCol - 1] === " ") readCol--;
+            while (readCol > 0 && line[readCol - 1] !== " ") readCol--;
+            speak(getCurrentWord().word); break;
+        }
+        case "g": /* First line */
+            e.preventDefault();
+            readRow = findFirstNonBlankLine(); readCol = 0;
+            updateReadingCursor(); speakCurrentLine(); break;
+        case "G": /* Last non-blank line */
+            e.preventDefault();
+            readRow = findLastNonBlankLine(); readCol = 0;
+            updateReadingCursor(); speakCurrentLine(); break;
+        case "F7": /* Page up */
+            e.preventDefault();
+            readRow = Math.max(0, readRow - 10); readCol = 0;
+            updateReadingCursor(); speakCurrentLine(); break;
+        case "F8": /* Page down */
+            e.preventDefault();
+            readRow = Math.min(ROWS - 1, readRow + 10); readCol = 0;
+            updateReadingCursor(); speakCurrentLine(); break;
+        case "^": { /* Beginning of line (first non-space char) */
+            e.preventDefault();
+            const line = rowToString(readRow);
+            readCol = 0;
+            while (readCol < COLS && line[readCol] === " ") readCol++;
+            speakCharAtCursor(); break;
+        }
+        case "$": { /* End of line (last non-space char) */
+            e.preventDefault();
+            const line = rowToString(readRow);
+            readCol = COLS - 1;
+            while (readCol > 0 && line[readCol] === " ") readCol--;
+            speakCharAtCursor(); break;
+        }
+        case "0": /* Column 0 (absolute start) */
+            e.preventDefault();
+            readCol = 0; speakCharAtCursor(); break;
+        case "c": /* Left-click at reading cursor position */
+            e.preventDefault();
+            simulateMouseClick(readRow, readCol, false);
+            break;
+        case "C": /* Right-click at reading cursor position */
+            e.preventDefault();
+            simulateMouseClick(readRow, readCol, true);
+            break;
+        default:
+            /* F-keys still pass through to global handler; block everything else */
+            if (!key.startsWith("F")) e.preventDefault();
+            break;
+    }
+}
+
+/* ═══════════════════════════════════════════
+ * Mouse Click Simulation
+ * ═══════════════════════════════════════════
+ *
+ * Simulates a mouse click at a given (row, col) screen position.
+ * Used in read mode to interact with menu-driven games like Time Quest
+ * and Eamon Deluxe.
+ *
+ * Approach: the PS2 mouse only supports relative movement (deltas),
+ * not absolute positioning. So we:
+ *   1. Send large negative deltas to reset cursor to (0, 0) corner
+ *   2. Send positive deltas to move to the target cell
+ *   3. Send click events (press then release)
+ *
+ * Deltas are chunked to stay within ±200 per packet to avoid
+ * 8-bit overflow in the PS2 mouse protocol.
+ *
+ * Coordinate mapping: DOS mouse drivers in EGA/VGA modes typically
+ * use virtual pixel coordinates. For 80×25 text over a 640×200 EGA
+ * screen, each cell is 8×8 pixels. We target the center of the cell.
+ *
+ * The v86 mouse bus protocol:
+ *   delta[0] positive = move right
+ *   delta[1] negative = move down (PS2 Y axis is inverted)
+ */
+
+/**
+ * Send a series of mouse-delta packets via the v86 bus.
+ * Chunks large movements into max ±200 per packet with 20ms gaps.
+ * Returns a Promise that resolves when all packets are sent.
+ */
+async function sendMouseDeltas(totalX, totalY) {
+    if (!emulator || !emulator.bus) return;
+    const CHUNK = 200;
+
+    while (totalX !== 0 || totalY !== 0) {
+        /* Clamp each axis to ±CHUNK */
+        const dx = Math.max(-CHUNK, Math.min(CHUNK, totalX));
+        const dy = Math.max(-CHUNK, Math.min(CHUNK, totalY));
+
+        emulator.bus.send("mouse-delta", [dx, dy]);
+
+        totalX -= dx;
+        totalY -= dy;
+
+        /* Brief pause between packets so the PS2 controller processes them */
+        await new Promise(r => setTimeout(r, 20));
+    }
+}
+
+/**
+ * Simulate a mouse click at the screen position (row, col).
+ * Maps the character cell to approximate pixel coordinates,
+ * resets the cursor to (0,0) via large negative deltas,
+ * then moves to the target and clicks.
+ *
+ * @param {number} row - Screen row (0-based)
+ * @param {number} col - Screen column (0-based)
+ * @param {boolean} rightClick - true for right-click, false for left
+ */
+async function simulateMouseClick(row, col, rightClick) {
+    if (!emulator || !emulator.bus) {
+        speak("No emulator running.");
+        return;
+    }
+
+    /*
+     * Determine pixel coordinates from the VGA canvas dimensions.
+     * In graphics modes, the canvas size reflects the actual video mode:
+     *   EGA 640×200, EGA 640×350, VGA 640×480, VGA 320×200, etc.
+     * We calculate cell size from canvas pixels ÷ text grid (80×25).
+     */
+    const container = document.getElementById("v86-screen-container");
+    const canvas = container ? container.querySelector("canvas") : null;
+
+    let canvasW = 640, canvasH = 200; /* EGA default fallback */
+    if (canvas && canvas.width > 0) {
+        canvasW = canvas.width;
+        canvasH = canvas.height;
+    }
+
+    const cellW = canvasW / COLS;       /* pixels per character column */
+    const cellH = canvasH / ROWS;       /* pixels per character row */
+
+    /* Target: center of the character cell */
+    const targetX = Math.round(col * cellW + cellW / 2);
+    const targetY = Math.round(row * cellH + cellH / 2);
+
+    const lineText = rowToString(row).trim();
+    const charAtPos = (col < lineText.length) ? lineText[col] : "blank";
+    speak((rightClick ? "Right-clicking " : "Clicking ") +
+          "row " + (row + 1) + " column " + (col + 1) +
+          ": " + charAtPos);
+
+    /*
+     * Step 1: Reset cursor to top-left corner (0, 0).
+     * Send large negative X and large positive Y (PS2: +Y = up).
+     * Total: (-1200, +1200) should reach corner from any position.
+     */
+    await sendMouseDeltas(-1200, 1200);
+
+    /* Small pause for the mouse driver to clamp to boundary */
+    await new Promise(r => setTimeout(r, 50));
+
+    /*
+     * Step 2: Move to target position.
+     * X: positive = right. Y: negative = down (PS2 convention).
+     */
+    await sendMouseDeltas(targetX, -targetY);
+
+    /* Small pause before clicking */
+    await new Promise(r => setTimeout(r, 50));
+
+    /* Step 3: Click — press then release after a short hold */
+    if (rightClick) {
+        emulator.bus.send("mouse-click", [false, false, true]);
+    } else {
+        emulator.bus.send("mouse-click", [true, false, false]);
+    }
+
+    /* Hold click for 100ms then release */
+    await new Promise(r => setTimeout(r, 100));
+    emulator.bus.send("mouse-click", [false, false, false]);
+}
+
+/* ═══════════════════════════════════════════
+ * Speech Actions
+ * ═══════════════════════════════════════════ */
+
+function speakScreen() {
+    const lines = [];
+    for (let r = 0; r < ROWS; r++) lines.push(rowToString(r).trim());
+    const f = filterForSpeech(lines);
+    speak(f.length ? f.join(". ") : "Screen is blank.");
+}
+
+function speakLast() {
+    const lines = getLastResponseFromScreen();
+    if (lines.length > 0) {
+        speak(lines.join(". "));
+    } else if (lastResponseLines.length > 0) {
+        /* Fallback to accumulated response */
+        speak(lastResponseLines.join(". "));
+    } else {
+        speak("No response detected.");
+    }
+}
+
+function speakNew() {
+    const f = filterForSpeech(pendingChanges);
+    speak(f.length ? f.join(". ") : "No new changes.");
+}
+
+/* ═══════════════════════════════════════════
+ * Generic FAT File Manager (FAT12 + FAT16, floppy + HDD)
+ * ═══════════════════════════════════════════ */
+
+/**
+ * Read disk bytes from v86 for the active game disk.
+ * Returns Uint8Array or null. Works for both floppy (fdb) and HDD (hda).
+ *
+ * v86 internal structure:
+ *   Floppy: emulator.v86.cpu.devices.fdc.drives[1].get_buffer()
+ *   HDD:    emulator.v86.cpu.devices.ide.primary.master.buffer (SyncBuffer)
+ *           SyncBuffer.get_buffer(callback) calls callback(ArrayBuffer) synchronously
+ */
+function getDiskBytes() {
+    if (!emulator) return null;
+    try {
+        const isHDD = diskTypeSelect.value === "hdd";
+        if (isHDD) {
+            /* IDE primary master = hda */
+            const dev = emulator.v86.cpu.devices.ide.primary.master;
+            if (!dev || !dev.buffer) return null;
+            /* SyncBuffer.get_buffer() is synchronous despite callback API */
+            let raw = null;
+            dev.buffer.get_buffer(function(buf) { raw = buf; });
+            if (!raw) return null;
+            return new Uint8Array(raw);
+        } else {
+            /* Floppy B: drive */
+            const buf = emulator.get_disk_fdb();
+            if (!buf) return null;
+            if (buf instanceof Uint8Array) return buf;
+            if (buf instanceof ArrayBuffer) return new Uint8Array(buf);
+            if (buf.buffer) return new Uint8Array(buf.buffer);
+            return null;
+        }
+    } catch(e) {
+        console.error("getDiskBytes() failed:", e);
+        return null;
+    }
+}
+
+/** Get a mutable copy of the disk image for writing. */
+function getDiskBytesCopy() {
+    const orig = getDiskBytes();
+    return orig ? new Uint8Array(orig) : null;
+}
+
+/**
+ * Replace the B: floppy image with new data (for file uploads).
+ * HDD write-back is not supported (too complex for direct buffer replacement).
+ */
+async function replaceDiskImage(data) {
+    if (!emulator || diskTypeSelect.value === "hdd") return false;
+    try {
+        const drive = emulator.v86.cpu.devices.fdc.drives[1];
+        if (drive) {
+            const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
+            const oldBuf = drive.buffer;
+            if (oldBuf && oldBuf.view) {
+                oldBuf.view = new DataView(ab);
+                oldBuf.byteLength = ab.byteLength;
+                return true;
+            }
+            if (oldBuf && typeof oldBuf.set === "function") {
+                oldBuf.set(0, data, function() {});
+                return true;
+            }
+        }
+        return false;
+    } catch(e) {
+        console.error("replaceDiskImage failed:", e);
+        return false;
+    }
+}
+
+/**
+ * Parse the FAT filesystem geometry from a disk image.
+ * Handles both raw floppies (BPB at byte 0) and MBR-partitioned HDDs
+ * (BPB at the first partition's start sector).
+ *
+ * Returns a geometry object with everything needed to read/write the FAT,
+ * or null if the image isn't a valid FAT filesystem.
+ */
+function parseFATGeometry(img) {
+    let partOffset = 0; /* byte offset to the partition/filesystem start */
+
+    /*
+     * Check for MBR: valid boot signature at 510-511 and at least one
+     * partition entry with a non-zero type byte. Floppies also have 0x55AA
+     * but their BPB at offset 11 has a small bytesPerSector value (512),
+     * while MBR boot code at offset 11 is typically not 0x0200.
+     */
+    if (img.length > 512 && img[510] === 0x55 && img[511] === 0xAA) {
+        /* Check all four partition table entries */
+        for (let i = 0; i < 4; i++) {
+            const entryOff = 446 + i * 16;
+            const partType = img[entryOff + 4];
+            if (partType === 0x04 || partType === 0x06 || partType === 0x0E ||
+                partType === 0x01 || partType === 0x0B || partType === 0x0C) {
+                /* Valid FAT partition type found */
+                const lbaStart = img[entryOff + 8] | (img[entryOff + 9] << 8) |
+                                 (img[entryOff + 10] << 16) | (img[entryOff + 11] << 24);
+                if (lbaStart > 0) {
+                    partOffset = lbaStart * 512;
+                    break;
+                }
+            }
+        }
+    }
+
+    /* Read BPB (BIOS Parameter Block) from the boot sector */
+    const bpb = partOffset;
+    const bytesPerSector   = img[bpb + 11] | (img[bpb + 12] << 8);
+    const sectorsPerCluster = img[bpb + 13];
+    const reservedSectors  = img[bpb + 14] | (img[bpb + 15] << 8);
+    const numFATs          = img[bpb + 16];
+    const rootDirEntries   = img[bpb + 17] | (img[bpb + 18] << 8);
+    let   totalSectors     = img[bpb + 19] | (img[bpb + 20] << 8);
+    const sectorsPerFAT    = img[bpb + 22] | (img[bpb + 23] << 8);
+
+    /* If small total sectors is 0, use the 32-bit field */
+    if (totalSectors === 0) {
+        totalSectors = img[bpb + 32] | (img[bpb + 33] << 8) |
+                       (img[bpb + 34] << 16) | (img[bpb + 35] << 24);
+    }
+
+    /* Sanity check the BPB values */
+    if (bytesPerSector < 128 || bytesPerSector > 4096) return null;
+    if (sectorsPerCluster === 0 || numFATs === 0) return null;
+    if (sectorsPerFAT === 0) return null;
+
+    /* Calculate layout offsets (all relative to partition start) */
+    const fatStart = partOffset + reservedSectors * bytesPerSector;
+    const fat2Start = fatStart + sectorsPerFAT * bytesPerSector;
+    const rootDirStart = partOffset + (reservedSectors + numFATs * sectorsPerFAT) * bytesPerSector;
+    const rootDirSectors = Math.ceil((rootDirEntries * 32) / bytesPerSector);
+    const dataStart = rootDirStart + rootDirSectors * bytesPerSector;
+
+    /* Determine FAT type from data cluster count */
+    const dataSectors = totalSectors - reservedSectors - (numFATs * sectorsPerFAT) - rootDirSectors;
+    const totalClusters = Math.floor(dataSectors / sectorsPerCluster);
+    const fatType = (totalClusters < 4085) ? 12 : 16;
+
+    const bytesPerCluster = bytesPerSector * sectorsPerCluster;
+
+    return {
+        partOffset, bytesPerSector, sectorsPerCluster, bytesPerCluster,
+        reservedSectors, numFATs, rootDirEntries, totalSectors,
+        sectorsPerFAT, fatStart, fat2Start, rootDirStart, dataStart,
+        totalClusters, fatType
+    };
+}
+
+/**
+ * Parse directory entries from the root directory of a FAT12/16 image.
+ * Returns array of { name, ext, fullName, size, firstCluster, attr, isDir, offset }.
+ */
+function parseFATDir(img, geo) {
+    if (!geo) return [];
+    const files = [];
+
+    for (let i = 0; i < geo.rootDirEntries; i++) {
+        const off = geo.rootDirStart + i * 32;
+        const firstByte = img[off];
+
+        if (firstByte === 0x00) break;    /* end of directory */
+        if (firstByte === 0xE5) continue; /* deleted entry */
+
+        const attr = img[off + 11];
+        if (attr === 0x0F) continue; /* LFN */
+        if (attr & 0x08) continue;   /* volume label */
+
+        let name = "";
+        for (let c = 0; c < 8; c++) name += String.fromCharCode(img[off + c]);
+        name = name.trimEnd();
+
+        let ext = "";
+        for (let c = 0; c < 3; c++) ext += String.fromCharCode(img[off + 8 + c]);
+        ext = ext.trimEnd();
+
+        const fullName = ext ? name + "." + ext : name;
+        const firstCluster = img[off + 26] | (img[off + 27] << 8);
+        const size = img[off + 28] | (img[off + 29] << 8) |
+                     (img[off + 30] << 16) | (img[off + 31] << 24);
+        const isDir = !!(attr & 0x10);
+
+        files.push({ name, ext, fullName, size, firstCluster, attr, isDir, offset: off });
+    }
+    return files;
+}
+
+/**
+ * Read a FAT entry for a given cluster number.
+ * Supports both FAT12 (12-bit packed entries) and FAT16 (16-bit entries).
+ */
+function readFATEntry(img, geo, cluster) {
+    if (geo.fatType === 12) {
+        const byteOff = Math.floor(cluster * 3 / 2);
+        const word = img[geo.fatStart + byteOff] | (img[geo.fatStart + byteOff + 1] << 8);
+        return (cluster & 1) ? (word >> 4) : (word & 0xFFF);
+    } else {
+        /* FAT16: 2 bytes per entry */
+        const byteOff = cluster * 2;
+        return img[geo.fatStart + byteOff] | (img[geo.fatStart + byteOff + 1] << 8);
+    }
+}
+
+/** Check if a FAT entry marks end-of-chain. */
+function isEOF(geo, val) {
+    return (geo.fatType === 12) ? (val >= 0xFF8) : (val >= 0xFFF8);
+}
+
+/**
+ * Read file data by following its cluster chain.
+ * Returns Uint8Array of file contents.
+ */
+function readFATFile(img, geo, file) {
+    const data = new Uint8Array(file.size);
+    let cluster = file.firstCluster;
+    let written = 0;
+
+    while (cluster >= 2 && !isEOF(geo, cluster) && written < file.size) {
+        const clusterOffset = geo.dataStart + (cluster - 2) * geo.bytesPerCluster;
+        const toRead = Math.min(geo.bytesPerCluster, file.size - written);
+        data.set(img.slice(clusterOffset, clusterOffset + toRead), written);
+        written += toRead;
+        cluster = readFATEntry(img, geo, cluster);
+    }
+    return data;
+}
+
+/**
+ * Write a FAT entry (both FAT copies).
+ */
+function writeFATEntry(img, geo, cluster, val) {
+    for (const base of [geo.fatStart, geo.fat2Start]) {
+        if (geo.fatType === 12) {
+            const bo = Math.floor(cluster * 3 / 2);
+            let w = img[base + bo] | (img[base + bo + 1] << 8);
+            if (cluster & 1) {
+                w = (w & 0x000F) | ((val & 0xFFF) << 4);
+            } else {
+                w = (w & 0xF000) | (val & 0xFFF);
+            }
+            img[base + bo] = w & 0xFF;
+            img[base + bo + 1] = (w >> 8) & 0xFF;
+        } else {
+            const bo = cluster * 2;
+            img[base + bo] = val & 0xFF;
+            img[base + bo + 1] = (val >> 8) & 0xFF;
+        }
+    }
+}
+
+/**
+ * Write a file to the FAT image.
+ * Finds free clusters, writes data, creates/overwrites a directory entry.
+ * Returns true on success.
+ */
+function writeFATFile(img, geo, fileName, fileData) {
+    const eofMark = (geo.fatType === 12) ? 0xFFF : 0xFFFF;
+
+    /* Parse 8.3 name */
+    const parts = fileName.toUpperCase().split(".");
+    const fn = (parts[0] || "").substring(0, 8).padEnd(8, " ");
+    const fe = (parts[1] || "").substring(0, 3).padEnd(3, " ");
+
+    /* Find free clusters */
+    const clustersNeeded = Math.ceil(fileData.length / geo.bytesPerCluster) || 1;
+    const freeClusters = [];
+    for (let c = 2; c <= geo.totalClusters + 1 && freeClusters.length < clustersNeeded; c++) {
+        if (readFATEntry(img, geo, c) === 0x000) freeClusters.push(c);
+    }
+    if (freeClusters.length < clustersNeeded) return false;
+
+    /* Write data to clusters and build chain */
+    for (let i = 0; i < freeClusters.length; i++) {
+        const c = freeClusters[i];
+        const off = geo.dataStart + (c - 2) * geo.bytesPerCluster;
+        const srcOff = i * geo.bytesPerCluster;
+        const chunk = fileData.slice(srcOff, srcOff + geo.bytesPerCluster);
+        img.set(new Uint8Array(chunk), off);
+        writeFATEntry(img, geo, c, (i < freeClusters.length - 1) ? freeClusters[i + 1] : eofMark);
+    }
+
+    /* Find or create directory entry */
+    let dirOff = -1;
+
+    /* Check if file already exists (overwrite) */
+    for (let i = 0; i < geo.rootDirEntries; i++) {
+        const o = geo.rootDirStart + i * 32;
+        if (img[o] === 0x00 || img[o] === 0xE5) continue;
+        let existName = "";
+        for (let c = 0; c < 11; c++) existName += String.fromCharCode(img[o + c]);
+        if (existName === fn + fe) {
+            /* Free old clusters first */
+            let oldC = img[o + 26] | (img[o + 27] << 8);
+            while (oldC >= 2 && !isEOF(geo, oldC)) {
+                const next = readFATEntry(img, geo, oldC);
+                writeFATEntry(img, geo, oldC, 0x000);
+                oldC = next;
+            }
+            dirOff = o;
+            break;
+        }
+    }
+
+    /* Find a free entry if not overwriting */
+    if (dirOff === -1) {
+        for (let i = 0; i < geo.rootDirEntries; i++) {
+            const o = geo.rootDirStart + i * 32;
+            if (img[o] === 0x00 || img[o] === 0xE5) { dirOff = o; break; }
+        }
+    }
+    if (dirOff === -1) return false;
+
+    /* Write directory entry */
+    for (let c = 0; c < 8; c++) img[dirOff + c] = fn.charCodeAt(c);
+    for (let c = 0; c < 3; c++) img[dirOff + 8 + c] = fe.charCodeAt(c);
+    img[dirOff + 11] = 0x20;
+    for (let c = 12; c < 26; c++) img[dirOff + c] = 0;
+    img[dirOff + 26] = freeClusters[0] & 0xFF;
+    img[dirOff + 27] = (freeClusters[0] >> 8) & 0xFF;
+    const sz = fileData.length;
+    img[dirOff + 28] = sz & 0xFF;
+    img[dirOff + 29] = (sz >> 8) & 0xFF;
+    img[dirOff + 30] = (sz >> 16) & 0xFF;
+    img[dirOff + 31] = (sz >> 24) & 0xFF;
+
+    return true;
+}
+
+/** Refresh the file manager table */
+function refreshFileManager() {
+    /* Update drive label in section header */
+    const isHDD = diskTypeSelect.value === "hdd";
+    const driveLabel = $("fm-drive-label");
+    if (driveLabel) driveLabel.textContent = isHDD ? "C:" : "B:";
+    const driveName = isHDD ? "C:" : "B:";
+
+    fmStatus.textContent = "Reading " + driveName + " drive...";
+    fmTable.style.display = "none";
+    fmTbody.innerHTML = "";
+
+    const img = getDiskBytes();
+    if (!img) {
+        fmStatus.textContent = "Could not read " + driveName + " disk. Try saving the game first, then refresh.";
+        return;
+    }
+
+    const geo = parseFATGeometry(img);
+    if (!geo) {
+        fmStatus.textContent = "Could not parse filesystem on " + driveName + " drive.";
+        return;
+    }
+
+    const files = parseFATDir(img, geo);
+    if (files.length === 0) {
+        fmStatus.textContent = "No files found on " + driveName + " drive.";
+        return;
+    }
+
+    fmStatus.textContent = files.length + " file(s) on " + driveName + " drive. (FAT" + geo.fatType + ")";
+    fmTable.style.display = "";
+
+    for (const f of files) {
+        const tr = document.createElement("tr");
+
+        const tdName = document.createElement("td");
+        tdName.textContent = f.fullName + (f.isDir ? " [DIR]" : "");
+        tr.appendChild(tdName);
+
+        const tdSize = document.createElement("td");
+        tdSize.textContent = f.isDir ? "-" : formatSize(f.size);
+        tr.appendChild(tdSize);
+
+        const tdAct = document.createElement("td");
+        if (!f.isDir && f.size > 0) {
+            const dlBtn = document.createElement("button");
+            dlBtn.className = "btn-secondary btn-sm";
+            dlBtn.textContent = "Download";
+            dlBtn.addEventListener("click", () => downloadFile(f));
+            tdAct.appendChild(dlBtn);
+        }
+        tr.appendChild(tdAct);
+
+        fmTbody.appendChild(tr);
+    }
+}
+
+function formatSize(bytes) {
+    if (bytes < 1024) return bytes + " B";
+    return (bytes / 1024).toFixed(1) + " KB";
+}
+
+/** Download a single file from the game disk */
+function downloadFile(file) {
+    const img = getDiskBytes();
+    if (!img) { fmStatus.textContent = "Read error."; return; }
+    const geo = parseFATGeometry(img);
+    if (!geo) { fmStatus.textContent = "Filesystem parse error."; return; }
+    const data = readFATFile(img, geo, file);
+    triggerDownload(data, file.fullName, "application/octet-stream");
+    fmStatus.textContent = "Downloaded " + file.fullName;
+}
+
+/** Upload file(s) to the game disk (floppy write-back only) */
+function uploadFiles(fileList) {
+    if (diskTypeSelect.value === "hdd") {
+        fmStatus.textContent = "File upload is only supported for floppy disk images.";
+        return;
+    }
+    const img = getDiskBytesCopy();
+    if (!img) { fmStatus.textContent = "Cannot access disk."; return; }
+    const geo = parseFATGeometry(img);
+    if (!geo) { fmStatus.textContent = "Cannot parse filesystem."; return; }
+
+    let pending = fileList.length;
+    let success = 0;
+
+    for (const f of fileList) {
+        const reader = new FileReader();
+        reader.onload = function() {
+            const data = new Uint8Array(reader.result);
+            if (writeFATFile(img, geo, f.name, data)) success++;
+            pending--;
+            if (pending === 0) finishUpload(img, success, fileList.length);
+        };
+        reader.readAsArrayBuffer(f);
+    }
+}
+
+async function finishUpload(img, success, total) {
+    /* Write the modified image back to the emulator */
+    const ok = await replaceDiskImage(img);
+    if (ok) {
+        fmStatus.textContent = "Uploaded " + success + "/" + total + " file(s). Type DIR in DOS to see them.";
+        refreshFileManager();
+    } else {
+        fmStatus.textContent = "FAT write succeeded but could not push image back to emulator. Try saving/restoring machine state instead.";
+    }
+}
+
+/** Download the entire game disk as a .img file */
+function downloadFloppyImage() {
+    const img = getDiskBytes();
+    if (!img) { fmStatus.textContent = "Cannot read disk."; return; }
+    /* Make a copy so we don't hand out the internal buffer */
+    const dlName = gameSelect.value || "game-disk.img";
+    triggerDownload(new Uint8Array(img), dlName, "application/octet-stream");
+    const sizeLabel = (img.length / (1024*1024)).toFixed(1) + " MB";
+    fmStatus.textContent = "Downloaded disk image (" + sizeLabel + ").";
+}
+
+/* ═══════════════════════════════════════════
+ * Save / Restore Machine State
+ * ═══════════════════════════════════════════ */
+
+async function saveState() {
+    if (!emulator) return;
+    stateSaveBtn.disabled = true;
+    fmStatus.textContent = "Saving machine state...";
+
+    try {
+        const state = await emulator.save_state();
+        const ts = new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19);
+        const gameName = (gameSelect.value || "game").replace(/\.img$/i, "");
+        triggerDownload(new Uint8Array(state), gameName + "-state-" + ts + ".v86state", "application/octet-stream");
+        fmStatus.textContent = "State saved! File size: " + formatSize(state.byteLength);
+        speak("Machine state saved.");
+    } catch(err) {
+        fmStatus.textContent = "Save failed: " + err;
+    }
+    stateSaveBtn.disabled = false;
+}
+
+function restoreState(file) {
+    if (!emulator) return;
+    stateRestoreBtn.disabled = true;
+    fmStatus.textContent = "Restoring state from " + file.name + "...";
+
+    const reader = new FileReader();
+    reader.onload = async function() {
+        try {
+            await emulator.restore_state(reader.result);
+            fmStatus.textContent = "State restored from " + file.name + ".";
+            speak("Machine state restored.");
+        } catch(err) {
+            fmStatus.textContent = "Restore failed: " + err;
+        }
+        stateRestoreBtn.disabled = false;
+        /* Re-sync screen buffer from emulator */
+        pendingChanges = [];
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+/* ═══════════════════════════════════════════
+ * Utility: trigger a browser download
+ * ═══════════════════════════════════════════ */
+
+function triggerDownload(data, filename, mime) {
+    const blob = new Blob([data], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
+}
+
+/* ═══════════════════════════════════════════
+ * UI Helpers
+ * ═══════════════════════════════════════════ */
+
+function setStatus(s, m) { statusEl.textContent = m; statusEl.className = s; }
+
+/** Push a message to the aria-live announcer for screen readers */
+function announce(msg) {
+    announcer.textContent = "";
+    setTimeout(function() { announcer.textContent = msg; }, 100);
+}
+
+function enableInput() {
+    isReady = true;
+    commandInput.disabled = false;
+    commandInput.placeholder = "Type command here...";
+    sendBtn.disabled = false;
+    enterOnlyBtn.disabled = false;
+    speakScreenBtn.disabled = false;
+    speakNewBtn.disabled = false;
+    speakLastBtn.disabled = false;
+    fmRefreshBtn.disabled = false;
+    fmUploadBtn.disabled = false;
+    fmDlFloppyBtn.disabled = false;
+    stateSaveBtn.disabled = false;
+    stateRestoreBtn.disabled = false;
+    recordBtn.disabled = false;
+    commandInput.focus();
+}
+
+/* ═══════════════════════════════════════════
+ * Keyboard Shortcuts (F-keys)
+ * ═══════════════════════════════════════════ */
+
+document.addEventListener("keydown", function(e) {
+    /*
+     * CRITICAL: v86 listens on window for keydown/keyup and sends them to DOS.
+     * We ALWAYS stop propagation to prevent ANY keyboard events from reaching
+     * v86. All communication with DOS goes through our explicit
+     * keyboard_send_text() and keyboard_send_scancodes() calls.
+     *
+     * Without this, modifier keys (Shift, Ctrl, Alt) from VoiceOver navigation
+     * or other assistive tech leak into v86 and get stuck, causing all text
+     * to appear uppercase/shifted in DOS.
+     */
+    e.stopPropagation();
+
+    /* F-keys work globally in both modes */
+    if (e.key === "F2") { e.preventDefault(); speakScreen(); return; }
+    if (e.key === "F3") { e.preventDefault(); speakLast(); return; }
+    if (e.key === "F4") { e.preventDefault(); speakNew(); return; }
+    if (e.key === "F5") { e.preventDefault(); stopSpeech(); return; }
+    if (e.key === "F6") { e.preventDefault(); setMode("insert"); return; }
+    if (e.key === "F9") { e.preventDefault(); if (isReady) refreshFileManager(); return; }
+    if (e.key === "F10") { e.preventDefault(); if (isReady) saveState(); return; }
+    if (e.key === "F11") { e.preventDefault(); if (isReady) stateRestoreInput.click(); return; }
+    if (e.key === "F12") {
+        e.preventDefault();
+        if (transcriptPollTimer) {
+            /* Already watching — flush and re-open the transcript */
+            flushTranscriptFile();
+        } else {
+            /* Not watching — start */
+            startTranscriptPoll();
+        }
+        return;
+    }
+
+    /* In INSERT mode, F7/F8 navigate response history (legacy behavior) */
+    if (keyMode === "insert") {
+        if (e.key === "F7") { e.preventDefault(); navPrevResponse(); return; }
+        if (e.key === "F8") { e.preventDefault(); navNextResponse(); return; }
+    }
+
+    /* In READ mode, route all non-F-key presses through the read handler */
+    if (keyMode === "read") {
+        const tag = e.target.tagName;
+        /* Don't intercept typing in other inputs (filename field, etc.) */
+        if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
+        handleReadKey(e);
+    }
+});
+
+/* Block ALL keyup events from reaching v86 */
+document.addEventListener("keyup", function(e) {
+    e.stopPropagation();
+});
+
+/* ═══════════════════════════════════════════
+ * Event Handlers
+ * ═══════════════════════════════════════════ */
+
+bootBtn.addEventListener("click", () => bootEmulator(true));
+bootPromptBtn.addEventListener("click", () => bootEmulator(false));
+
+commandInput.addEventListener("keydown", function(e) {
+    /*
+     * CRITICAL: v86 captures keydown on window. We must ALWAYS stop
+     * propagation from the input field, otherwise every typed character
+     * also gets sent directly to DOS (causing double input, shift-stuck
+     * bugs, and general chaos).
+     */
+    e.stopPropagation();
+
+    if (!isReady) return;
+
+    /* If in read mode, don't process input keystrokes */
+    if (keyMode === "read") {
+        e.preventDefault();
+        return;
+    }
+
+    /* Escape: switch to read mode (always available) */
+    if (e.key === "Escape") {
+        e.preventDefault(); setMode("read"); return;
+    }
+
+    /*
+     * Single-key mode: each keypress goes directly to DOS without Enter.
+     * Used for menu-driven games (e.g. Eamon Deluxe) where the game
+     * expects individual keypresses rather than typed command lines.
+     */
+    if (singleKeyToggle.checked) {
+        e.preventDefault();
+
+        /* Let F-keys through to the global handler */
+        if (e.key.startsWith("F") && e.key.length <= 3) return;
+
+        if (e.key === "Enter") {
+            awaitingResponse = true; pendingChanges = [];
+            emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+            return;
+        }
+        if (e.key === "Backspace") {
+            emulator.keyboard_send_scancodes([0x0E, 0x8E]);
+            return;
+        }
+        if (e.key === "ArrowUp") {
+            emulator.keyboard_send_scancodes([0x48, 0xC8]);
+            speak("up"); return;
+        }
+        if (e.key === "ArrowDown") {
+            emulator.keyboard_send_scancodes([0x50, 0xD0]);
+            speak("down"); return;
+        }
+        if (e.key === "ArrowLeft") {
+            emulator.keyboard_send_scancodes([0x4B, 0xCB]);
+            return;
+        }
+        if (e.key === "ArrowRight") {
+            emulator.keyboard_send_scancodes([0x4D, 0xCD]);
+            return;
+        }
+
+        /* Printable characters: send via keyboard_send_text */
+        if (e.key.length === 1) {
+            awaitingResponse = true; pendingChanges = [];
+            emulator.keyboard_send_text(e.key);
+            speak(e.key);
+            return;
+        }
+        return;
+    }
+
+    /* ─── Normal INSERT mode below ─── */
+
+    /* Enter: send command */
+    if (e.key === "Enter") {
+        e.preventDefault(); sendCommand(this.value); this.value = ""; return;
+    }
+
+    /* Arrow Up: command history with speech */
+    if (e.key === "ArrowUp") {
+        e.preventDefault();
+        if (commandHistory.length) {
+            historyIndex = (historyIndex === -1) ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
+            this.value = commandHistory[historyIndex];
+            speak(this.value);
+        }
+        return;
+    }
+
+    /* Arrow Down: command history with speech */
+    if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (historyIndex >= 0) {
+            historyIndex++;
+            if (historyIndex >= commandHistory.length) {
+                historyIndex = -1; this.value = ""; speak("empty");
+            } else {
+                this.value = commandHistory[historyIndex]; speak(this.value);
+            }
+        }
+        return;
+    }
+
+    /* Arrow Left: speak character at cursor */
+    if (e.key === "ArrowLeft") {
+        setTimeout(() => {
+            const pos = this.selectionStart;
+            const ch = this.value[pos];
+            if (ch !== undefined) speak(ch === " " ? "space" : ch);
+        }, 10);
+        return;
+    }
+
+    /* Arrow Right: speak character just passed */
+    if (e.key === "ArrowRight") {
+        setTimeout(() => {
+            const pos = this.selectionStart;
+            const ch = this.value[pos - 1];
+            if (ch !== undefined) speak(ch === " " ? "space" : ch);
+            else speak("end");
+        }, 10);
+        return;
+    }
+
+    /* Backspace: speak deleted character */
+    if (e.key === "Backspace") {
+        const pos = this.selectionStart;
+        if (pos > 0) {
+            const deleted = this.value[pos - 1];
+            speak(deleted === " " ? "space" : deleted);
+        }
+        return;
+    }
+
+    /* Typing feedback: speak characters or words as user types */
+    const feedbackMode = typingFeedbackSelect.value;
+    if (feedbackMode !== "none" && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        if (feedbackMode === "characters") {
+            /* Speak every character as it's typed */
+            speak(e.key === " " ? "space" : e.key);
+        } else if (feedbackMode === "words" && e.key === " ") {
+            /* On space, extract and speak the word just completed */
+            setTimeout(() => {
+                const val = this.value;
+                const pos = this.selectionStart;
+                /* Walk back from just before the space to find the word */
+                let end = pos - 1; /* the space we just typed */
+                while (end > 0 && val[end - 1] === " ") end--;
+                let start = end;
+                while (start > 0 && val[start - 1] !== " ") start--;
+                const word = val.slice(start, end).trim();
+                if (word) speak(word);
+            }, 10);
+        }
+    }
+});
+
+/* Also block keyup from input reaching v86 (prevents shift/modifier stuck state) */
+commandInput.addEventListener("keyup", function(e) { e.stopPropagation(); });
+
+sendBtn.addEventListener("click", () => { if (!isReady) return; sendCommand(commandInput.value); commandInput.value = ""; commandInput.focus(); });
+enterOnlyBtn.addEventListener("click", () => { if (!isReady || !emulator) return; sendEnter(); commandInput.focus(); });
+
+speakScreenBtn.addEventListener("click", speakScreen);
+speakLastBtn.addEventListener("click", speakLast);
+speakNewBtn.addEventListener("click", speakNew);
+stopSpeechBtn.addEventListener("click", stopSpeech);
+testSpeechBtn.addEventListener("click", () => speak("Speech test. Speed " + rateSlider.value + ", pitch " + pitchSlider.value + "."));
+
+rateSlider.addEventListener("input", () => { rateValue.textContent = parseFloat(rateSlider.value).toFixed(1); });
+pitchSlider.addEventListener("input", () => { pitchValue.textContent = parseFloat(pitchSlider.value).toFixed(1); });
+
+histPrevBtn.addEventListener("click", navPrevResponse);
+histNextBtn.addEventListener("click", navNextResponse);
+
+fmRefreshBtn.addEventListener("click", refreshFileManager);
+fmUploadBtn.addEventListener("click", () => fmUploadInput.click());
+fmUploadInput.addEventListener("change", function() { if (this.files.length) uploadFiles(this.files); this.value = ""; });
+fmDlFloppyBtn.addEventListener("click", downloadFloppyImage);
+
+stateSaveBtn.addEventListener("click", saveState);
+stateRestoreBtn.addEventListener("click", () => stateRestoreInput.click());
+stateRestoreInput.addEventListener("change", function() { if (this.files.length) restoreState(this.files[0]); this.value = ""; });
+
+recordBtn.addEventListener("click", toggleRecording);
+downloadTranscriptBtn.addEventListener("click", downloadTranscript);
+clearTranscriptBtn.addEventListener("click", clearTranscript);
+transcriptWatchBtn.addEventListener("click", startTranscriptPoll);
+transcriptFlushBtn.addEventListener("click", flushTranscriptFile);
+transcriptDisconnectBtn.addEventListener("click", stopTranscriptPoll);
+transcriptPollSpeedSelect.addEventListener("change", restartTranscriptPoll);
+transcriptTestReadBtn.addEventListener("click", testReadTranscript);
+transcriptSpeakLastBtn.addEventListener("click", speakLastTranscript);
+transcriptAutoFlushToggle.addEventListener("change", function() {
+    transcriptAutoFlushOptions.style.display = this.checked ? "" : "none";
+    if (this.checked) {
+        announce("Auto-flush enabled. Each command will flush and speak the response.");
+    }
+});
+
+/* Update the total time display when any delay field changes */
+function updateFlushTotal() {
+    const d0 = parseInt(transcriptFlushDelay.value, 10) || 0;
+    const d1 = parseInt(transcriptFlushD1.value, 10) || 0;
+    const d2 = parseInt(transcriptFlushD2.value, 10) || 0;
+    const d3 = parseInt(transcriptFlushD3.value, 10) || 0;
+    transcriptFlushTotal.textContent = (d0 + d1 + d2 + d3).toString();
+}
+transcriptFlushDelay.addEventListener("input", updateFlushTotal);
+transcriptFlushD1.addEventListener("input", updateFlushTotal);
+transcriptFlushD2.addEventListener("input", updateFlushTotal);
+transcriptFlushD3.addEventListener("input", updateFlushTotal);
+
+window.addEventListener("load", () => {
+    if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
+        setStatus("error", "v86 not loaded. Serve via HTTP. Use start.command or: python3 -m http.server 8000");
+        bootBtn.disabled = true; bootPromptBtn.disabled = true;
+    }
+});
+
+/* ═══════ Init ═══════ */
+loadSettings();
+initBuffer();
+initScreenDOM();
+updateHistNav();
+</script>
+</body>
+</html>
