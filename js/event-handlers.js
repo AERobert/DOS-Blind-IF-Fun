@@ -296,6 +296,66 @@ histCopyBtn.addEventListener("click", function() {
     });
 });
 
+/* ═══════════════════════════════════════════
+ * Pre-load Files (queued before boot)
+ * ═══════════════════════════════════════════ */
+
+function renderPreloadFilesList() {
+    preloadFilesList.innerHTML = "";
+    if (preloadFiles.length === 0) {
+        preloadFilesCount.textContent = "";
+        return;
+    }
+    preloadFilesCount.textContent = preloadFiles.length + " file(s) queued";
+    for (let i = 0; i < preloadFiles.length; i++) {
+        const pf = preloadFiles[i];
+        const item = document.createElement("div");
+        item.className = "preload-file-item";
+
+        const nameSpan = document.createElement("span");
+        nameSpan.className = "file-name";
+        nameSpan.textContent = pf.name;
+        item.appendChild(nameSpan);
+
+        const sizeSpan = document.createElement("span");
+        sizeSpan.className = "file-size";
+        sizeSpan.textContent = formatSize(pf.data.byteLength);
+        item.appendChild(sizeSpan);
+
+        const removeBtn = document.createElement("button");
+        removeBtn.className = "remove-btn";
+        removeBtn.textContent = "\u00D7";
+        removeBtn.title = "Remove " + pf.name;
+        removeBtn.setAttribute("aria-label", "Remove " + pf.name);
+        removeBtn.addEventListener("click", (function(idx) {
+            return function() {
+                preloadFiles.splice(idx, 1);
+                renderPreloadFilesList();
+            };
+        })(i));
+        item.appendChild(removeBtn);
+
+        preloadFilesList.appendChild(item);
+    }
+}
+
+preloadFilesBtn.addEventListener("click", () => preloadFilesInput.click());
+preloadFilesInput.addEventListener("change", function() {
+    if (!this.files.length) return;
+    let pending = this.files.length;
+    for (const f of this.files) {
+        const reader = new FileReader();
+        const name = f.name;
+        reader.onload = function() {
+            preloadFiles.push({ name: name, data: reader.result });
+            pending--;
+            if (pending === 0) renderPreloadFilesList();
+        };
+        reader.readAsArrayBuffer(f);
+    }
+    this.value = "";
+});
+
 window.addEventListener("load", () => {
     if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
         setStatus("error", "v86 not loaded. Serve via HTTP. Use start.command or: python3 -m http.server 8000");

@@ -23,7 +23,7 @@ async function populateGameSelect() {
 
     if (found.length === 0) {
         const o = document.createElement("option");
-        o.value = ""; o.textContent = "No .img files found — use 'Load Custom .img'";
+        o.value = ""; o.textContent = "No .img files found \u2014 use 'Load Custom .img'";
         gameSelect.appendChild(o);
     } else {
         for (const g of found) {
@@ -36,7 +36,7 @@ async function populateGameSelect() {
 
     /* If settings had a saved game selection, restore it */
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
         if (raw) {
             const s = JSON.parse(raw);
             if (s.selectedGame && gameSelect.querySelector('option[value="' + s.selectedGame + '"]')) {
@@ -45,35 +45,26 @@ async function populateGameSelect() {
         }
     } catch(e) {}
 
-    /* Apply presets for the initially selected game */
+    /* Apply presets (and load per-game settings) for the initially selected game */
     applyGamePreset();
 }
 
 /**
- * Apply autorun and prompt presets when a known game is selected.
- * Always applies all preset values — if the user wants to customize,
- * they can edit after selecting. This avoids stale-localStorage bugs
- * where fields retain values from a previously selected game.
+ * Apply game preset and load per-game settings.
+ * Loads saved per-game customizations, falling back to preset defaults
+ * for any settings the user hasn't customized yet.
  */
 function applyGamePreset() {
     const filename = gameSelect.value;
     const preset = KNOWN_GAMES[filename];
-    if (!preset) return;
 
-    autorunInput.value = preset.autorun;
-    promptCharInput.value = preset.prompt;
-    if (preset.depth) promptDepthSelect.value = preset.depth;
-    if (preset.disk) diskTypeSelect.value = preset.disk;
-
-    /* Toggle single-key mode for menu-driven games */
-    singleKeyToggle.checked = !!preset.singleKey;
+    /* Load per-game settings (merges preset defaults with saved overrides) */
+    loadGameSettings();
 
     /* Warn about graphics-mode games that can't be screen-read */
-    if (preset.graphics) {
+    if (preset && preset.graphics) {
         setStatus("loading", preset.label + " uses graphics mode. Screen reader access will be limited after boot.");
     }
-
-    saveSettings();
 
     /* Clear custom blob when switching to a known image */
     customFloppyBlob = null;
@@ -100,14 +91,14 @@ function handleCustomImgUpload(file) {
     reader.readAsArrayBuffer(file);
 }
 
-/* Save selected game in settings */
+/* Save selected game in global settings and apply preset */
 gameSelect.addEventListener("change", function() {
     applyGamePreset();
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
+        const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
         const s = raw ? JSON.parse(raw) : {};
         s.selectedGame = gameSelect.value;
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+        localStorage.setItem(GLOBAL_STORAGE_KEY, JSON.stringify(s));
     } catch(e) {}
 });
 

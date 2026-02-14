@@ -42,6 +42,17 @@
             </div>
         </div>
         <div class="panel-row" style="margin-top:0.75rem;">
+            <div class="field-group">
+                <label>Pre-load files onto game disk (save files, patches, etc.)</label>
+                <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.3rem;">
+                    <button id="preload-files-btn" class="btn-secondary btn-sm">Add Files...</button>
+                    <input type="file" id="preload-files-input" style="display:none" multiple>
+                    <span id="preload-files-count" style="font-size:0.85rem;color:var(--text-secondary);"></span>
+                </div>
+                <div id="preload-files-list" style="margin-top:0.4rem;"></div>
+            </div>
+        </div>
+        <div class="panel-row" style="margin-top:0.75rem;">
             <button id="boot-btn" class="btn-primary">Boot &amp; Launch Game</button>
             <button id="boot-prompt-btn" class="btn-secondary">Boot to DOS Prompt</button>
         </div>
