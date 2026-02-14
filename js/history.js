@@ -6,7 +6,7 @@
 
 function addToHistory(text, isCmd) {
     if (historyLog.children.length === 1 &&
-        historyLog.firstChild.textContent.startsWith("History")) {
+        historyLog.firstChild.textContent === "History appears here after the game starts.") {
         historyLog.innerHTML = "";
     }
     const d = document.createElement("div");

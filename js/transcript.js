@@ -56,22 +56,30 @@ function pollTranscriptFile() {
     if (!emulator || !isReady) return;
 
     const text = readTranscriptFromDisk();
-    if (text === null || text.length === 0) return;
+    if (text === null || text.length === 0) {
+        trace("POLL", "No transcript data on disk");
+        return;
+    }
+
+    trace("POLL", "Disk read: " + text.length + " bytes (lastLength=" + transcriptPollLastLength + ")");
 
     /* Check if there's new content since our last read. */
     if (text.length < transcriptPollLastLength) {
         console.log("Transcript file appears re-created (shorter). Resetting.");
+        trace("POLL", "File re-created (shorter: " + text.length + " < " + transcriptPollLastLength + "), resetting");
         transcriptPollLastLength = 0;
     }
     if (text.length <= transcriptPollLastLength) return;
 
     const newText = text.slice(transcriptPollLastLength);
     transcriptPollLastLength = text.length;
+    trace("POLL", "New data: " + newText.length + " bytes, preview: " + JSON.stringify(newText.substring(0, 80)));
 
     /* First data arrival: activate transcript mode */
     if (!transcriptCapActive) {
         transcriptCapActive = true;
         console.log("Transcript file detected — transcript capture active");
+        trace("TRANSCRIPT", "First data arrival — transcript capture activated, " + text.length + " bytes on disk");
 
         /* If muting screen speech, kill any pending screen-change speech */
         if (transcriptMuteScreenToggle.checked) {
@@ -180,7 +188,9 @@ function startTranscriptPoll() {
     const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
     transcriptPollTimer = setInterval(pollTranscriptFile, ms);
     updateTranscriptConnectionUI();
-    announce("Watching for " + (transcriptWatchFilename.value || "SCRIPT.TXT") +
+    const fname = transcriptWatchFilename.value || "SCRIPT.TXT";
+    trace("TRANSCRIPT", "Started polling for " + fname + " every " + ms + "ms");
+    announce("Watching for " + fname +
              " on disk. Type SCRIPT in the game to start.");
 }
 
@@ -188,6 +198,7 @@ function startTranscriptPoll() {
  * Stop polling and deactivate transcript capture.
  */
 function stopTranscriptPoll() {
+    trace("TRANSCRIPT", "Stopping poll (had " + transcriptLines.length + " lines)");
     if (transcriptPollTimer) {
         clearInterval(transcriptPollTimer);
         transcriptPollTimer = null;
@@ -207,6 +218,7 @@ function stopTranscriptPoll() {
 function restartTranscriptPoll() {
     if (!transcriptPollTimer) return; /* not currently polling */
     clearInterval(transcriptPollTimer);
+    transcriptPollLastLength = 0;
     const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
     transcriptPollTimer = setInterval(pollTranscriptFile, ms);
 }
@@ -241,36 +253,50 @@ async function flushTranscriptFile() {
  * Returns null if file not found or empty.
  */
 function readTranscriptFromDisk() {
-    if (!emulator || !isReady) return null;
+    if (!emulator || !isReady) {
+        trace("FAT", "readTranscriptFromDisk: skipped (emulator=" + !!emulator + " isReady=" + isReady + ")");
+        return null;
+    }
 
     const img = getDiskBytes();
-    if (!img) return null;
+    if (!img) { trace("FAT", "getDiskBytes returned null"); return null; }
 
     const geo = parseFATGeometry(img);
-    if (!geo) return null;
+    if (!geo) { trace("FAT", "parseFATGeometry returned null"); return null; }
+    /* Use deduplicating geometry logger — suppresses repeated identical lines */
+    traceFATGeometry(geo);
 
     const files = parseFATDir(img, geo);
     const target = (transcriptWatchFilename.value || "SCRIPT.TXT").toUpperCase().trim();
 
     const file = files.find(f => f.fullName.toUpperCase() === target);
-    if (!file) return null;
+    if (!file) {
+        trace("FAT", target + " not found. Files: " + files.map(f => f.fullName).join(", "));
+        return null;
+    }
+    trace("FAT", file.fullName + " cluster=" + file.firstCluster + " dirSize=" + file.size);
 
     /* Try cluster chain first (works even when dir size = 0) */
     if (file.firstCluster >= 2) {
         const data = readFATFileByChain(img, geo, file.firstCluster);
         if (data && data.length > 0) {
+            trace("FAT", "Read via chain: " + data.length + " bytes");
             return new TextDecoder("ascii").decode(data);
         }
+        trace("FAT", "Chain read returned empty/null");
     }
 
     /* Fall back to directory size (works after fclose) */
     if (file.size > 0) {
         const data = readFATFile(img, geo, file);
         if (data && data.length > 0) {
+            trace("FAT", "Read via dirSize: " + data.length + " bytes");
             return new TextDecoder("ascii").decode(data);
         }
+        trace("FAT", "DirSize read returned empty/null");
     }
 
+    trace("FAT", "No data for " + target);
     return null;
 }
 
@@ -317,7 +343,7 @@ function speakLastTranscript() {
     const promptStr = promptCharInput.value || ">";
     let lastPromptIdx = -1;
     for (let i = lines.length - 1; i >= 0; i--) {
-        if (lines[i].trim().startsWith(promptStr)) {
+        if (stripBorder(lines[i].trim()).startsWith(promptStr)) {
             lastPromptIdx = i;
             break;
         }
@@ -346,8 +372,12 @@ function speakLastTranscript() {
  * Auto-flush cycle: triggered after each command when auto-flush is on.
  */
 async function autoFlushCycle() {
-    if (!emulator || !isReady || autoFlushPending) return;
+    if (!emulator || !isReady || autoFlushPending) {
+        trace("FLUSH", "autoFlushCycle skipped: emulator=" + !!emulator + " isReady=" + isReady + " pending=" + autoFlushPending);
+        return;
+    }
     autoFlushPending = true;
+    trace("FLUSH", "Phase 1: sending 'script off'");
 
     /* Kill any pending/in-progress screen speech */
     clearTimeout(changeSettleTimer);
@@ -359,13 +389,16 @@ async function autoFlushCycle() {
     const d1 = parseInt(transcriptFlushD1.value, 10) || 600;
     const d2 = parseInt(transcriptFlushD2.value, 10) || 600;
     const d3 = parseInt(transcriptFlushD3.value, 10) || 400;
+    trace("FLUSH", "Delays: d1=" + d1 + " d2=" + d2 + " d3=" + d3 + " file=" + fname);
 
     /* Phase 1: Flush to disk */
     await typeToDOS("script off", true);
     await new Promise(r => setTimeout(r, d1));
 
     /* Phase 2: Read + Parse + Speak */
+    trace("FLUSH", "Phase 2: reading transcript from disk");
     const text = readTranscriptFromDisk();
+    trace("FLUSH", "Disk read: " + (text ? text.length + " bytes" : "null"));
 
     if (text) {
         /* Update shared transcript state for read mode navigation */
@@ -410,7 +443,7 @@ async function autoFlushCycle() {
 
         const promptPositions = [];
         for (let i = 0; i < nonEmpty.length; i++) {
-            if (nonEmpty[i].trim().startsWith(promptStr)) {
+            if (stripBorder(nonEmpty[i].trim()).startsWith(promptStr)) {
                 promptPositions.push(i);
             }
         }
@@ -428,19 +461,28 @@ async function autoFlushCycle() {
             }
             responseLines = candidates;
         } else {
-            responseLines = nonEmpty.slice(0, -1);
+            /* No prompts found — use all non-empty lines */
+            responseLines = nonEmpty.slice();
         }
 
-        /* Filter out "Transcript off." confirmation */
-        responseLines = responseLines.filter(l =>
-            l.trim().toLowerCase() !== "transcript off." &&
-            l.trim().toLowerCase() !== "transcript off");
+        /* Filter out "script off" / "transcript off" echoes and confirmations */
+        responseLines = responseLines.filter(l => {
+            const t = l.trim().toLowerCase();
+            return t !== "transcript off." &&
+                   t !== "transcript off" &&
+                   t !== "script off" &&
+                   t !== "script off.";
+        });
+
+        trace("FLUSH", "Prompts found: " + promptPositions.length + " at positions [" + promptPositions.join(",") + "]");
+        trace("FLUSH", "Response lines: " + responseLines.length);
 
         const cleanText = responseLines.map(l => l.trim()).filter(l => l.length > 0).join(". ");
 
         if (cleanText) {
             window.speechSynthesis.cancel();
             console.log("Auto-flush response:", cleanText.substring(0, 120));
+            trace("FLUSH", "Speaking: " + cleanText.substring(0, 120));
             speak(cleanText);
 
             const filtered = responseLines.filter(l => l.trim());
@@ -460,6 +502,7 @@ async function autoFlushCycle() {
     }
 
     /* Phase 3: Re-open transcript (runs while speech is playing) */
+    trace("FLUSH", "Phase 3: re-opening transcript with 'script' + '" + fname + "'");
     await typeToDOS("script", true);
     await new Promise(r => setTimeout(r, d2));
 
@@ -474,6 +517,7 @@ async function autoFlushCycle() {
     pendingChanges = [];
 
     autoFlushPending = false;
+    trace("FLUSH", "Auto-flush cycle complete");
 }
 
 /**
@@ -522,7 +566,10 @@ function resetTranscriptWatchdog() {
         if (transcriptCapActive) {
             console.warn("Transcript watchdog fired — no data for " +
                          (TRANSCRIPT_TIMEOUT_MS / 1000) + "s, falling back");
+            trace("TRANSCRIPT", "Watchdog fired — no data for " + (TRANSCRIPT_TIMEOUT_MS / 1000) + "s, deactivating");
             transcriptCapActive = false;
+            transcriptLines = [];
+            transcriptLineBuffer = "";
             prevLines = new Array(ROWS).fill("");
             updateTranscriptConnectionUI();
             announce("Transcript timed out. Still watching — will reconnect if new data appears.");

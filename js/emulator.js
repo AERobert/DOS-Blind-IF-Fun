@@ -60,12 +60,38 @@ function bootEmulator(autoLaunch) {
     });
 
     /* Capture serial port output */
+    let serialTraceBuf = "";
+    let serialTraceTimer = null;
     emulator.add_listener("serial0-output-byte", function(byte) {
+        /* Batch serial bytes into short trace lines to avoid per-byte spam */
+        if (traceEnabled) {
+            if (byte >= 32 && byte < 127) {
+                serialTraceBuf += String.fromCharCode(byte);
+            } else {
+                serialTraceBuf += "<0x" + byte.toString(16).padStart(2, "0") + ">";
+            }
+            if (!serialTraceTimer) {
+                serialTraceTimer = setTimeout(function() {
+                    if (serialTraceBuf) {
+                        trace("SERIAL", "textCap=" + textCapActive + " data: " + serialTraceBuf);
+                        /* Feed printable text to pattern detector */
+                        traceTextPattern(serialTraceBuf.replace(/<0x[0-9a-f]+>/g, " "));
+                        serialTraceBuf = "";
+                    }
+                    serialTraceTimer = null;
+                }, 100);
+            }
+        }
+
+        /* Always run file-I/O marker detection (cheap state machine) */
+        checkFileIOMarker(byte);
+
         /* Check for TextCap startup marker (ESC[TC]) */
         if (!textCapActive && checkTextCapMarker(byte)) {
             textCapActive = true;
             initTextCapBuffer();
             console.log("TextCap TSR detected — serial text capture active");
+            trace("TEXTCAP", "TextCap TSR marker detected — serial text capture active");
             announce("Text capture active. Game text will be read via serial port.");
             return;
         }
@@ -94,6 +120,7 @@ function bootEmulator(autoLaunch) {
         if (found || checks > 200) {
             clearInterval(checker);
             pendingChanges = []; lastResponseLines = [];
+            trace("BOOT", "DOS prompt detected after " + checks + " checks (" + (checks * 0.5) + "s)");
 
             /*
              * CRITICAL VoiceOver fix: destroy v86's browser keyboard adapter.

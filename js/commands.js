@@ -41,6 +41,7 @@ function typeToDOS(text, sendEnterAfter) {
  */
 function sendCommand(text) {
     if (!emulator) return;
+    trace("CMD", "sendCommand: " + JSON.stringify(text));
     awaitingResponse = true;
     pendingChanges = [];
 
