@@ -131,21 +131,32 @@ function bootEmulator(autoLaunch) {
 
             enableInput();
 
-            /* Inject pre-loaded files onto the game disk */
+            /* Collapse setup panel after boot */
+            var setupPanel = document.getElementById("section-setup");
+            if (setupPanel) setupPanel.open = false;
+
+            /* Inject pre-loaded files + checked stored files onto the game disk */
             setTimeout(async () => {
-                if (preloadFiles.length > 0) {
-                    setStatus("loading", "Writing " + preloadFiles.length + " pre-loaded file(s) to disk...");
+                /* Gather all files to inject */
+                const filesToInject = preloadFiles.slice();
+                try {
+                    const stored = await getCheckedStoredFileData();
+                    for (let si = 0; si < stored.length; si++) filesToInject.push(stored[si]);
+                } catch(e) {}
+
+                if (filesToInject.length > 0) {
+                    setStatus("loading", "Writing " + filesToInject.length + " file(s) to disk...");
                     const img = getDiskBytesCopy();
                     if (img) {
                         const geo = parseFATGeometry(img);
                         if (geo) {
                             let written = 0;
-                            for (const pf of preloadFiles) {
+                            for (const pf of filesToInject) {
                                 if (writeFATFile(img, geo, pf.name, new Uint8Array(pf.data))) written++;
                             }
                             const ok = await replaceDiskImage(img);
                             if (ok) {
-                                trace("PRELOAD", "Wrote " + written + "/" + preloadFiles.length + " pre-loaded files to disk");
+                                trace("PRELOAD", "Wrote " + written + "/" + filesToInject.length + " files to disk");
                             } else {
                                 trace("PRELOAD", "FAT write succeeded but could not push image back to emulator");
                             }

@@ -134,3 +134,5 @@ const traceFSDiffBtn=$("trace-fs-diff-btn");
 const histCopyBtn=$("hist-copy-btn");
 const preloadFilesBtn=$("preload-files-btn"), preloadFilesInput=$("preload-files-input");
 const preloadFilesList=$("preload-files-list"), preloadFilesCount=$("preload-files-count");
+const storedFilesTable=$("stored-files-table"), storedFilesTbody=$("stored-files-tbody");
+const storedFilesStatus=$("stored-files-status");

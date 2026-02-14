@@ -171,16 +171,20 @@ autorunInput.addEventListener("change", saveGameSettings);
  * Collapsible Section Persistence
  * ═══════════════════════════════════════════ */
 
-/** Save open/closed state of all collapsible panels to localStorage */
+/** Save open/closed state of collapsible panels to localStorage.
+ *  Setup section is excluded — it always opens on page load and collapses on boot. */
 function saveCollapseStates() {
     document.querySelectorAll("details.cpanel[id]").forEach(d => {
+        if (d.id === "section-setup") return;
         try { localStorage.setItem(COLLAPSE_PREFIX + d.id, d.open ? "1" : "0"); } catch(e) {}
     });
 }
 
-/** Restore collapse states from localStorage */
+/** Restore collapse states from localStorage.
+ *  Setup section is skipped — it stays open (as set in HTML). */
 function restoreCollapseStates() {
     document.querySelectorAll("details.cpanel[id]").forEach(d => {
+        if (d.id === "section-setup") return;
         try {
             const val = localStorage.getItem(COLLAPSE_PREFIX + d.id);
             if (val !== null) d.open = (val === "1");

@@ -322,6 +322,26 @@ function renderPreloadFilesList() {
         sizeSpan.textContent = formatSize(pf.data.byteLength);
         item.appendChild(sizeSpan);
 
+        /* Save to persistent storage */
+        if (typeof fileDB !== "undefined" && fileDB) {
+            const saveBtn = document.createElement("button");
+            saveBtn.className = "save-btn";
+            saveBtn.textContent = "Save";
+            saveBtn.title = "Save to persistent storage";
+            saveBtn.setAttribute("aria-label", "Save " + pf.name + " to storage");
+            saveBtn.addEventListener("click", (function(file) {
+                return function() {
+                    saveFileToStorage(file.name, file.data, gameSelect.value).then(function() {
+                        announce("Saved " + file.name + " to storage.");
+                        if (typeof renderStoredFilesTable === "function") renderStoredFilesTable();
+                    }).catch(function() {
+                        announce("Failed to save " + file.name + ".");
+                    });
+                };
+            })(pf));
+            item.appendChild(saveBtn);
+        }
+
         const removeBtn = document.createElement("button");
         removeBtn.className = "remove-btn";
         removeBtn.textContent = "\u00D7";

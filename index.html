@@ -41,9 +41,17 @@
                 <input type="text" id="autorun-input" class="field-input" placeholder="e.g. T-ZERO.EXE or MNDWHEEL.BAT" spellcheck="false">
             </div>
         </div>
+        <div style="margin-top:0.75rem;">
+            <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.3rem;">Stored Files <span style="font-weight:normal;">(persistent across sessions)</span></label>
+            <div id="stored-files-status" style="font-size:0.85rem;color:var(--text-secondary);"></div>
+            <table class="file-table" id="stored-files-table" style="display:none;margin-top:0.3rem;">
+                <thead><tr><th style="width:2.5rem;"></th><th>Name</th><th>Size</th><th>Game</th><th>Actions</th></tr></thead>
+                <tbody id="stored-files-tbody"></tbody>
+            </table>
+        </div>
         <div class="panel-row" style="margin-top:0.75rem;">
             <div class="field-group">
-                <label>Pre-load files onto game disk (save files, patches, etc.)</label>
+                <label>Add files to load onto game disk (one-time)</label>
                 <div style="display:flex;align-items:center;gap:0.5rem;margin-top:0.3rem;">
                     <button id="preload-files-btn" class="btn-secondary btn-sm">Add Files...</button>
                     <input type="file" id="preload-files-input" style="display:none" multiple>
@@ -391,6 +399,7 @@
 <script src="js/reading-mode.js"></script>
 <script src="js/speech-actions.js"></script>
 <script src="js/file-manager.js"></script>
+<script src="js/file-storage.js"></script>
 <script src="js/state-save.js"></script>
 <script src="js/emulator.js"></script>
 <script src="js/event-handlers.js"></script>
