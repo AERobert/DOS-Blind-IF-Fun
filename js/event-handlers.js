@@ -268,6 +268,31 @@ transcriptFlushD1.addEventListener("input", updateFlushTotal);
 transcriptFlushD2.addEventListener("input", updateFlushTotal);
 transcriptFlushD3.addEventListener("input", updateFlushTotal);
 
+/* Debug tracing */
+traceToggleBtn.addEventListener("click", toggleTrace);
+traceDownloadBtn.addEventListener("click", downloadTrace);
+traceClearBtn.addEventListener("click", clearTrace);
+
+/* Copy history to clipboard */
+histCopyBtn.addEventListener("click", function() {
+    const entries = historyLog.querySelectorAll(".history-entry");
+    if (!entries.length) {
+        announce("No history to copy.");
+        return;
+    }
+    const lines = [];
+    for (const entry of entries) {
+        lines.push(entry.textContent);
+    }
+    const text = lines.join("\n");
+    navigator.clipboard.writeText(text).then(function() {
+        announce("History copied to clipboard.");
+    }, function() {
+        /* Fallback for older browsers or permission denied */
+        announce("Could not copy to clipboard.");
+    });
+});
+
 window.addEventListener("load", () => {
     if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
         setStatus("error", "v86 not loaded. Serve via HTTP. Use start.command or: python3 -m http.server 8000");

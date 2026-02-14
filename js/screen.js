@@ -135,8 +135,11 @@ function refreshScreen() {
 function onScreenSettled() {
     if (!pendingChanges.length) return;
 
+    trace("SCREEN", "Settled with " + pendingChanges.length + " changes, mute=" + transcriptMuteScreenToggle.checked + " autoFlush=" + autoFlushPending);
+
     /* Mute screen speech: either explicitly checked, or during auto-flush. */
     if (transcriptMuteScreenToggle.checked || autoFlushPending) {
+        trace("SCREEN", "Muted — discarding " + pendingChanges.length + " changes");
         pendingChanges = [];
         awaitingResponse = false;
         return;

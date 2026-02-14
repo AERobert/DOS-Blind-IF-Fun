@@ -69,6 +69,11 @@ let textCapMarkerPos = 0;
 /* Speech voices */
 let voices = [];
 
+/* Emulator debug tracing */
+let traceEnabled = false;
+let traceLog = [];          /* array of trace entry strings */
+let traceStartTime = 0;    /* Date.now() when tracing started */
+
 /* ═══════ DOM refs ═══════ */
 const $ = id => document.getElementById(id);
 const bootBtn=$("boot-btn"), bootPromptBtn=$("boot-prompt-btn"), statusEl=$("status");
@@ -116,3 +121,8 @@ const transcriptFlushD3=$("transcript-flush-d3");
 const transcriptFlushTotal=$("transcript-flush-total");
 const transcriptTestReadBtn=$("transcript-test-read-btn");
 const transcriptSpeakLastBtn=$("transcript-speak-last-btn");
+const traceToggleBtn=$("trace-toggle-btn");
+const traceDownloadBtn=$("trace-download-btn");
+const traceClearBtn=$("trace-clear-btn");
+const traceStatus=$("trace-status");
+const histCopyBtn=$("hist-copy-btn");

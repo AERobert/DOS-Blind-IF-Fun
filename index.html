@@ -249,6 +249,7 @@
         <div class="history-nav">
             <button id="hist-prev-btn" class="btn-secondary btn-sm" disabled>&#x25C0; Prev Response</button>
             <button id="hist-next-btn" class="btn-secondary btn-sm" disabled>Next Response &#x25B6;</button>
+            <button id="hist-copy-btn" class="btn-secondary btn-sm" title="Copy all history text to clipboard">Copy to Clipboard</button>
             <span id="hist-position"></span>
         </div>
         </div>
@@ -274,6 +275,23 @@
             <thead><tr><th>Name</th><th>Size</th><th>Actions</th></tr></thead>
             <tbody id="fm-tbody"></tbody>
         </table>
+        </div>
+    </details>
+
+    <!-- Debug Tracing -->
+    <details class="cpanel" id="section-trace">
+        <summary><h2>Debug Tracing</h2></summary>
+        <div class="cpanel-body">
+        <p style="margin:0 0 0.5rem;font-size:0.85rem;color:var(--text-secondary);">
+            Enable tracing to capture detailed internal events (serial I/O, FAT reads, transcript capture,
+            screen changes, commands). Download the trace log to diagnose issues.
+        </p>
+        <div class="panel-row" style="gap:0.4rem;">
+            <button id="trace-toggle-btn" class="btn-secondary btn-sm">Start Tracing</button>
+            <button id="trace-download-btn" class="btn-primary btn-sm" style="display:none;">Download Trace</button>
+            <button id="trace-clear-btn" class="btn-secondary btn-sm" style="display:none;">Clear</button>
+        </div>
+        <p id="trace-status" style="margin:0.4rem 0 0;font-size:0.85rem;color:var(--text-secondary);">Idle</p>
         </div>
     </details>
 
@@ -333,6 +351,7 @@
 <script src="js/constants.js"></script>
 <script src="js/state.js"></script>
 <script src="js/ui-helpers.js"></script>
+<script src="js/trace.js"></script>
 <script src="js/settings.js"></script>
 <script src="js/speech.js"></script>
 <script src="js/games.js"></script>
