@@ -283,8 +283,8 @@
         <summary><h2>Debug Tracing</h2></summary>
         <div class="cpanel-body">
         <p style="margin:0 0 0.5rem;font-size:0.85rem;color:var(--text-secondary);">
-            Enable tracing to capture detailed internal events (serial I/O, FAT reads, transcript capture,
-            screen changes, commands). Download the trace log to diagnose issues.
+            Capture detailed internal events: serial I/O with file-operation marker detection,
+            FAT reads, transcript capture, screen changes, commands, and filesystem diffs.
         </p>
         <div class="panel-row" style="gap:0.4rem;">
             <button id="trace-toggle-btn" class="btn-secondary btn-sm">Start Tracing</button>
@@ -292,6 +292,22 @@
             <button id="trace-clear-btn" class="btn-secondary btn-sm" style="display:none;">Clear</button>
         </div>
         <p id="trace-status" style="margin:0.4rem 0 0;font-size:0.85rem;color:var(--text-secondary);">Idle</p>
+        <div style="margin-top:0.6rem;border-top:1px solid var(--surface-border,#333);padding-top:0.5rem;">
+            <label style="font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                <input type="checkbox" id="trace-fs-track-toggle">
+                Track filesystem changes (auto-diff every 5s + on file-I/O markers)
+            </label>
+            <div class="panel-row" style="gap:0.4rem;margin-top:0.4rem;">
+                <button id="trace-fs-snap-btn" class="btn-secondary btn-sm">Snapshot Now</button>
+                <button id="trace-fs-diff-btn" class="btn-secondary btn-sm">Diff Now</button>
+            </div>
+            <p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--text-secondary);">
+                Snapshot captures all files on the game disk. Diff compares current state to the last
+                snapshot and logs new, modified, or deleted files. File-I/O markers
+                (<code>&lt;STX&gt;O&lt;ETX&gt;</code>) and text patterns ("Saving...", "Transcript off.")
+                trigger automatic diffs when tracking is on.
+            </p>
+        </div>
         </div>
     </details>
 

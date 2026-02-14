@@ -272,6 +272,9 @@ transcriptFlushD3.addEventListener("input", updateFlushTotal);
 traceToggleBtn.addEventListener("click", toggleTrace);
 traceDownloadBtn.addEventListener("click", downloadTrace);
 traceClearBtn.addEventListener("click", clearTrace);
+traceFSTrackToggle.addEventListener("change", toggleFSTracking);
+traceFSSnapBtn.addEventListener("click", takeSnapshotNow);
+traceFSDiffBtn.addEventListener("click", function() { traceFSDiff("manual"); });
 
 /* Copy history to clipboard */
 histCopyBtn.addEventListener("click", function() {

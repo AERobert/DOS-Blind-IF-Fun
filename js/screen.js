@@ -137,6 +137,11 @@ function onScreenSettled() {
 
     trace("SCREEN", "Settled with " + pendingChanges.length + " changes, mute=" + transcriptMuteScreenToggle.checked + " autoFlush=" + autoFlushPending);
 
+    /* Feed screen text into pattern detector (for text-mode games) */
+    if (traceEnabled && pendingChanges.length > 0) {
+        traceTextPattern(pendingChanges.join(" "));
+    }
+
     /* Mute screen speech: either explicitly checked, or during auto-flush. */
     if (transcriptMuteScreenToggle.checked || autoFlushPending) {
         trace("SCREEN", "Muted — discarding " + pendingChanges.length + " changes");

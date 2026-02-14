@@ -260,45 +260,43 @@ function readTranscriptFromDisk() {
 
     const img = getDiskBytes();
     if (!img) { trace("FAT", "getDiskBytes returned null"); return null; }
-    trace("FAT", "Disk image: " + img.length + " bytes");
 
     const geo = parseFATGeometry(img);
     if (!geo) { trace("FAT", "parseFATGeometry returned null"); return null; }
-    trace("FAT", "FAT" + geo.fatBits + " geometry: sectorsPerCluster=" + geo.sectorsPerCluster +
-          " bytesPerCluster=" + geo.bytesPerCluster + " dataStart=0x" + geo.dataStart.toString(16));
+    /* Use deduplicating geometry logger — suppresses repeated identical lines */
+    traceFATGeometry(geo);
 
     const files = parseFATDir(img, geo);
     const target = (transcriptWatchFilename.value || "SCRIPT.TXT").toUpperCase().trim();
-    trace("FAT", "Directory has " + files.length + " files, looking for " + target);
 
     const file = files.find(f => f.fullName.toUpperCase() === target);
     if (!file) {
-        trace("FAT", "File " + target + " not found. Files on disk: " + files.map(f => f.fullName).join(", "));
+        trace("FAT", target + " not found. Files: " + files.map(f => f.fullName).join(", "));
         return null;
     }
-    trace("FAT", "Found " + file.fullName + " cluster=" + file.firstCluster + " dirSize=" + file.size);
+    trace("FAT", file.fullName + " cluster=" + file.firstCluster + " dirSize=" + file.size);
 
     /* Try cluster chain first (works even when dir size = 0) */
     if (file.firstCluster >= 2) {
         const data = readFATFileByChain(img, geo, file.firstCluster);
         if (data && data.length > 0) {
-            trace("FAT", "Read via cluster chain: " + data.length + " bytes");
+            trace("FAT", "Read via chain: " + data.length + " bytes");
             return new TextDecoder("ascii").decode(data);
         }
-        trace("FAT", "Cluster chain read returned empty/null");
+        trace("FAT", "Chain read returned empty/null");
     }
 
     /* Fall back to directory size (works after fclose) */
     if (file.size > 0) {
         const data = readFATFile(img, geo, file);
         if (data && data.length > 0) {
-            trace("FAT", "Read via directory size: " + data.length + " bytes");
+            trace("FAT", "Read via dirSize: " + data.length + " bytes");
             return new TextDecoder("ascii").decode(data);
         }
-        trace("FAT", "Directory size read returned empty/null");
+        trace("FAT", "DirSize read returned empty/null");
     }
 
-    trace("FAT", "No data found for " + target);
+    trace("FAT", "No data for " + target);
     return null;
 }
 

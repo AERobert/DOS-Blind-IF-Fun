@@ -125,4 +125,7 @@ const traceToggleBtn=$("trace-toggle-btn");
 const traceDownloadBtn=$("trace-download-btn");
 const traceClearBtn=$("trace-clear-btn");
 const traceStatus=$("trace-status");
+const traceFSTrackToggle=$("trace-fs-track-toggle");
+const traceFSSnapBtn=$("trace-fs-snap-btn");
+const traceFSDiffBtn=$("trace-fs-diff-btn");
 const histCopyBtn=$("hist-copy-btn");

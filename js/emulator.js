@@ -74,12 +74,17 @@ function bootEmulator(autoLaunch) {
                 serialTraceTimer = setTimeout(function() {
                     if (serialTraceBuf) {
                         trace("SERIAL", "textCap=" + textCapActive + " data: " + serialTraceBuf);
+                        /* Feed printable text to pattern detector */
+                        traceTextPattern(serialTraceBuf.replace(/<0x[0-9a-f]+>/g, " "));
                         serialTraceBuf = "";
                     }
                     serialTraceTimer = null;
                 }, 100);
             }
         }
+
+        /* Always run file-I/O marker detection (cheap state machine) */
+        checkFileIOMarker(byte);
 
         /* Check for TextCap startup marker (ESC[TC]) */
         if (!textCapActive && checkTextCapMarker(byte)) {
