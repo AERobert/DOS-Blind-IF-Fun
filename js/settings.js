@@ -6,8 +6,13 @@
 
 function saveSettings() {
     try {
+        /* Preserve the saved voice URI if voices haven't loaded yet */
+        let voiceURI = voiceSelect.value;
+        if (!voiceURI || !voices.length) {
+            voiceURI = voiceSelect.dataset.savedVoice || voiceURI;
+        }
         const s = {
-            voiceURI: voiceSelect.value,
+            voiceURI: voiceURI,
             rate: rateSlider.value,
             pitch: pitchSlider.value,
             autoSpeak: autoSpeakToggle.checked,

@@ -186,6 +186,9 @@ app.post("/api/workspace/import", upload.single("image"), (req, res) => {
         fs.mkdirSync(WORKSPACE_FILES, { recursive: true });
         const count = fat.extractImageToDirectory(imgData, WORKSPACE_FILES);
 
+        /* Do NOT update lastKnownFileState — leave stale so /changes
+         * detects the imports and the browser can pull a fresh disk. */
+
         res.json({ imported: count });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -218,6 +221,10 @@ app.post("/api/workspace/import-server-img", (req, res) => {
         const imgData = fs.readFileSync(imgPath);
         fs.mkdirSync(WORKSPACE_FILES, { recursive: true });
         const count = fat.extractImageToDirectory(imgData, WORKSPACE_FILES);
+
+        /* Do NOT update lastKnownFileState here — leave it stale so
+         * /api/workspace/changes detects the new files and the browser
+         * can pull a fresh disk image into the emulator. */
 
         res.json({ imported: count, from: safeName });
     } catch (err) {
@@ -368,16 +375,12 @@ app.post("/api/workspace/live-sync", upload.single("image"), (req, res) => {
             }
         }
 
-        /* Remove files that no longer exist in the image */
-        const extractedNames = new Set(extracted.map(f => f.name));
-        try {
-            for (const name of fs.readdirSync(WORKSPACE_FILES)) {
-                if (!extractedNames.has(name)) {
-                    try { fs.unlinkSync(path.join(WORKSPACE_FILES, name)); } catch (e) {}
-                    changed.push("-" + name);
-                }
-            }
-        } catch (e) {}
+        /*
+         * Do NOT delete files that are on the server but not in the image.
+         * The server directory may contain files added externally (e.g. via
+         * import) that haven't been pulled into the emulator yet.  Only the
+         * explicit "Clear All" button should delete workspace files.
+         */
 
         /* Update snapshot */
         lastKnownFileState = snapshotFileState();

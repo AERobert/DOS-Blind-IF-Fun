@@ -189,6 +189,8 @@ async function importGameToWorkspace(filename) {
         if (status) status.textContent = "Import error: " + err.message;
     }
     refreshWorkspaceFiles();
+    /* If the emulator is running, pull the updated disk immediately */
+    if (emulator && isReady) pollServerChanges();
 }
 
 async function importCustomImgToWorkspace(file) {
@@ -205,6 +207,8 @@ async function importCustomImgToWorkspace(file) {
         if (status) status.textContent = "Import error: " + err.message;
     }
     refreshWorkspaceFiles();
+    /* If the emulator is running, pull the updated disk immediately */
+    if (emulator && isReady) pollServerChanges();
 }
 
 async function clearWorkspace() {

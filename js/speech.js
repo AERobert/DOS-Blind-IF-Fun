@@ -39,7 +39,7 @@ function loadVoices() {
 }
 
 speechSynthesis.addEventListener("voiceschanged", loadVoices);
-loadVoices();
+/* loadVoices() is called from init.js after loadSettings() so savedVoice is available */
 
 function getVoice() { return voices.find(v => v.voiceURI === voiceSelect.value) || null; }
 
