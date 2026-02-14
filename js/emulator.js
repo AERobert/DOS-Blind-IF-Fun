@@ -131,8 +131,40 @@ function bootEmulator(autoLaunch) {
 
             enableInput();
 
-            /* Try to redirect LPT1 -> COM1 so SCRIPT command output gets captured */
+            /* Collapse setup panel after boot */
+            var setupPanel = document.getElementById("section-setup");
+            if (setupPanel) setupPanel.open = false;
+
+            /* Inject pre-loaded files + checked stored files onto the game disk */
             setTimeout(async () => {
+                /* Gather all files to inject */
+                const filesToInject = preloadFiles.slice();
+                try {
+                    const stored = await getCheckedStoredFileData();
+                    for (let si = 0; si < stored.length; si++) filesToInject.push(stored[si]);
+                } catch(e) {}
+
+                if (filesToInject.length > 0) {
+                    setStatus("loading", "Writing " + filesToInject.length + " file(s) to disk...");
+                    const img = getDiskBytesCopy();
+                    if (img) {
+                        const geo = parseFATGeometry(img);
+                        if (geo) {
+                            let written = 0;
+                            for (const pf of filesToInject) {
+                                if (writeFATFile(img, geo, pf.name, new Uint8Array(pf.data))) written++;
+                            }
+                            const ok = await replaceDiskImage(img);
+                            if (ok) {
+                                trace("PRELOAD", "Wrote " + written + "/" + filesToInject.length + " files to disk");
+                            } else {
+                                trace("PRELOAD", "FAT write succeeded but could not push image back to emulator");
+                            }
+                        }
+                    }
+                }
+
+                /* Try to redirect LPT1 -> COM1 so SCRIPT command output gets captured */
                 await typeToDOS("MODE LPT1:=COM1:", true);
 
                 if (autoLaunch) {

@@ -55,6 +55,9 @@ let autoFlushTimer = null;         /* setTimeout handle for delayed flush */
 /* Custom floppy image loaded via file picker (ArrayBuffer or null) */
 let customFloppyBlob = null;
 
+/* Files queued for injection onto the game disk before launch */
+let preloadFiles = []; /* Array of { name: string, data: ArrayBuffer } */
+
 /*
  * responseLog: array of response objects:
  *   { type: "command"|"response", lines: string[], index: number }
@@ -129,3 +132,7 @@ const traceFSTrackToggle=$("trace-fs-track-toggle");
 const traceFSSnapBtn=$("trace-fs-snap-btn");
 const traceFSDiffBtn=$("trace-fs-diff-btn");
 const histCopyBtn=$("hist-copy-btn");
+const preloadFilesBtn=$("preload-files-btn"), preloadFilesInput=$("preload-files-input");
+const preloadFilesList=$("preload-files-list"), preloadFilesCount=$("preload-files-count");
+const storedFilesTable=$("stored-files-table"), storedFilesTbody=$("stored-files-tbody");
+const storedFilesStatus=$("stored-files-status");

@@ -42,8 +42,23 @@ const TC_NORMAL = 0, TC_ESC = 1, TC_CSI = 2, TC_OSC = 3;
 
 const TRANSCRIPT_TIMEOUT_MS = 60000; /* fall back after 60s with no data */
 
-const STORAGE_KEY = "tzero-player-settings";
+const STORAGE_KEY = "tzero-player-settings"; /* legacy — migrated on first load */
+const GLOBAL_STORAGE_KEY = "dos-player-global";
+const GAME_STORAGE_PREFIX = "dos-player-game-";
 const COLLAPSE_PREFIX = "tzero_section_";
+
+/* Default game-specific settings (used when no saved per-game settings exist) */
+const GAME_SETTING_DEFAULTS = {
+    autoSpeak: false,
+    speakAfterCmd: true,
+    skipDecor: true,
+    typingFeedback: "characters",
+    promptChar: ">",
+    promptDepth: "last",
+    diskType: "floppy",
+    autorun: "",
+    singleKey: false
+};
 
 /* Typing delay between characters sent to DOS */
 const CHAR_DELAY_MS = 30;

@@ -55,6 +55,28 @@ function refreshFileManager() {
             dlBtn.textContent = "Download";
             dlBtn.addEventListener("click", () => downloadFile(f));
             tdAct.appendChild(dlBtn);
+
+            /* Save to persistent IndexedDB storage */
+            if (typeof fileDB !== "undefined" && fileDB) {
+                const saveBtn = document.createElement("button");
+                saveBtn.className = "btn-secondary btn-sm";
+                saveBtn.textContent = "Save";
+                saveBtn.title = "Save to persistent storage";
+                saveBtn.addEventListener("click", function() {
+                    const imgNow = getDiskBytes();
+                    if (!imgNow) { fmStatus.textContent = "Read error."; return; }
+                    const geoNow = parseFATGeometry(imgNow);
+                    if (!geoNow) { fmStatus.textContent = "Filesystem parse error."; return; }
+                    const fileData = readFATFile(imgNow, geoNow, f);
+                    saveFileToStorage(f.fullName, fileData, gameSelect.value).then(function() {
+                        fmStatus.textContent = "Saved " + f.fullName + " to storage.";
+                        if (typeof renderStoredFilesTable === "function") renderStoredFilesTable();
+                    }).catch(function() {
+                        fmStatus.textContent = "Failed to save " + f.fullName + ".";
+                    });
+                });
+                tdAct.appendChild(saveBtn);
+            }
         }
         tr.appendChild(tdAct);
 
