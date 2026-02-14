@@ -31,6 +31,7 @@ async function bootEmulator(autoLaunch) {
     if (useWorkspace) {
         /* Fetch the workspace disk image from the server */
         isHDD = true; /* workspace is always an HDD */
+        diskTypeSelect.value = "hdd"; /* sync UI so getDiskBytes() reads HDD */
         try {
             setStatus("loading", "Building workspace disk image...");
             const wsDisk = await fetchWorkspaceDisk();
