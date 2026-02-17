@@ -1,0 +1,367 @@
+/* ═══════════════════════════════════════════
+ * DOS Device Monitor
+ * ═══════════════════════════════════════════
+ *
+ * Captures output from DOS special devices:
+ *   CON    — Console (screen text output)
+ *   COM1   — Serial port (AUX is an alias)
+ *   LPT1   — Printer (PRN is an alias)
+ *
+ * v86 exposes:
+ *   - screen-put-char events  → CON capture
+ *   - serial0-output-byte     → COM1/AUX capture
+ *   - LPT1 via MODE LPT1:=COM1: redirect (mixed into serial stream)
+ *
+ * Each device has its own buffer that can be downloaded as a text file.
+ * This lets users test directing game output (e.g. transcript) to
+ * devices like COM1 or AUX and capture it in real-time without
+ * filesystem flush issues.
+ */
+
+import { state,
+         devConToggle, devConStatus, devConDownloadBtn, devConClearBtn,
+         devCom1Toggle, devCom1Status, devCom1DownloadBtn, devCom1ClearBtn,
+         devLpt1Toggle, devLpt1Status, devLpt1DownloadBtn, devLpt1ClearBtn,
+         devDownloadAllBtn, devClearAllBtn, devCom1RawToggle,
+         devConPreview, devCom1Preview, devLpt1Preview } from './state.js';
+import { ROWS, COLS } from './constants.js';
+import { triggerDownload, announce } from './ui-helpers.js';
+import { trace } from './trace.js';
+import { rowToString } from './screen.js';
+
+/* ─── CON (Console) capture ─── */
+
+let conSnapshotTimer = null;
+
+/**
+ * Start periodic CON capture — snapshots the screen buffer every 200ms
+ * and appends any new/changed lines to the CON device buffer.
+ */
+export function startConCapture() {
+    state.deviceCapture.con.enabled = true;
+    state.deviceConPrevLines = [];
+    /* Take initial snapshot */
+    if (state.isReady) {
+        state.deviceConPrevLines = getCurrentScreenLines();
+    }
+    /* Poll for screen changes */
+    if (!conSnapshotTimer) {
+        conSnapshotTimer = setInterval(conSnapshotPoll, 250);
+    }
+    trace("DEVICE", "CON capture started");
+    updateDeviceUI();
+}
+
+export function stopConCapture() {
+    state.deviceCapture.con.enabled = false;
+    if (conSnapshotTimer) {
+        clearInterval(conSnapshotTimer);
+        conSnapshotTimer = null;
+    }
+    trace("DEVICE", "CON capture stopped (" + state.deviceCapture.con.bytes + " bytes)");
+    updateDeviceUI();
+}
+
+/** Get current screen text as an array of trimmed-right lines */
+function getCurrentScreenLines() {
+    var lines = [];
+    for (var r = 0; r < ROWS; r++) {
+        lines.push(rowToString(r));
+    }
+    return lines;
+}
+
+/** Compare current screen to previous snapshot, append new content */
+function conSnapshotPoll() {
+    if (!state.deviceCapture.con.enabled || !state.isReady) return;
+
+    var current = getCurrentScreenLines();
+    var prev = state.deviceConPrevLines;
+
+    /* Simple diff: look for lines that changed */
+    var changed = false;
+    for (var r = 0; r < ROWS; r++) {
+        var curLine = (r < current.length) ? current[r] : "";
+        var prevLine = (r < prev.length) ? prev[r] : "";
+        if (curLine !== prevLine) {
+            var trimmed = curLine.trimEnd();
+            if (trimmed.length > 0) {
+                state.deviceCapture.con.buffer += trimmed + "\n";
+                state.deviceCapture.con.bytes += trimmed.length + 1;
+                changed = true;
+            }
+        }
+    }
+
+    state.deviceConPrevLines = current;
+
+    if (changed) {
+        updateDeviceStatusLine("con");
+    }
+}
+
+/* ─── COM1 (Serial Port) capture ─── */
+
+/**
+ * Called from emulator.js for every serial0-output-byte.
+ * This captures ALL serial bytes regardless of TextCap or other processing.
+ */
+export function feedCom1Byte(byte) {
+    if (!state.deviceCapture.com1.enabled) return;
+
+    state.deviceCapture.com1.bytes++;
+    state.deviceCapture.com1.rawBytes.push(byte);
+
+    /* Text representation */
+    if (byte === 0x0D) {
+        /* CR — skip (will get LF next) */
+        return;
+    }
+    if (byte === 0x0A) {
+        state.deviceCapture.com1.buffer += "\n";
+        return;
+    }
+    if (byte >= 0x20 && byte < 0x7F) {
+        state.deviceCapture.com1.buffer += String.fromCharCode(byte);
+    } else {
+        /* Non-printable: show as hex if raw mode, skip otherwise */
+        if (devCom1RawToggle && devCom1RawToggle.checked) {
+            state.deviceCapture.com1.buffer += "<" + byte.toString(16).padStart(2, "0") + ">";
+        }
+    }
+}
+
+/**
+ * Called from emulator.js for serial bytes that are "printer redirect" data.
+ * These are the filtered printable bytes from the LPT1→COM1 redirect.
+ */
+export function feedLpt1Byte(byte) {
+    if (!state.deviceCapture.lpt1.enabled) return;
+
+    if (byte === 0x0D) return;
+    if (byte === 0x0A) {
+        state.deviceCapture.lpt1.buffer += "\n";
+        state.deviceCapture.lpt1.bytes++;
+        return;
+    }
+    if (byte >= 0x20 && byte < 0x7F) {
+        state.deviceCapture.lpt1.buffer += String.fromCharCode(byte);
+        state.deviceCapture.lpt1.bytes++;
+    }
+}
+
+/* ─── UI update ─── */
+
+let deviceUITimer = null;
+
+/** Update the status line for a single device */
+function updateDeviceStatusLine(dev) {
+    var cap = state.deviceCapture[dev];
+    var statusEl = null;
+    var preview = null;
+    if (dev === "con") { statusEl = devConStatus; preview = devConPreview; }
+    else if (dev === "com1") { statusEl = devCom1Status; preview = devCom1Preview; }
+    else if (dev === "lpt1") { statusEl = devLpt1Status; preview = devLpt1Preview; }
+
+    if (statusEl) {
+        var bytes = cap.bytes;
+        var sizeStr = bytes < 1024 ? bytes + " bytes" :
+                      bytes < 1024 * 1024 ? (bytes / 1024).toFixed(1) + " KB" :
+                      (bytes / (1024 * 1024)).toFixed(1) + " MB";
+        statusEl.textContent = cap.enabled ? sizeStr + " captured" : "off";
+        statusEl.style.color = cap.enabled && cap.bytes > 0 ? "var(--success, #2d8a4e)" :
+                               cap.enabled ? "var(--warning, #b58900)" : "var(--dim, #888)";
+    }
+
+    /* Update preview tail */
+    if (preview && cap.enabled && cap.buffer.length > 0) {
+        var tail = cap.buffer.length > 300 ? "..." + cap.buffer.slice(-300) : cap.buffer;
+        preview.textContent = tail;
+        preview.style.display = "";
+        preview.scrollTop = preview.scrollHeight;
+    } else if (preview) {
+        preview.style.display = "none";
+    }
+}
+
+/** Full UI refresh for all devices */
+export function updateDeviceUI() {
+    updateDeviceStatusLine("con");
+    updateDeviceStatusLine("com1");
+    updateDeviceStatusLine("lpt1");
+
+    /* Enable/disable download/clear buttons */
+    if (devConDownloadBtn) {
+        devConDownloadBtn.disabled = state.deviceCapture.con.bytes === 0;
+        devConClearBtn.disabled = state.deviceCapture.con.bytes === 0;
+    }
+    if (devCom1DownloadBtn) {
+        devCom1DownloadBtn.disabled = state.deviceCapture.com1.bytes === 0;
+        devCom1ClearBtn.disabled = state.deviceCapture.com1.bytes === 0;
+    }
+    if (devLpt1DownloadBtn) {
+        devLpt1DownloadBtn.disabled = state.deviceCapture.lpt1.bytes === 0;
+        devLpt1ClearBtn.disabled = state.deviceCapture.lpt1.bytes === 0;
+    }
+}
+
+/** Start periodic UI refresh when any device is active */
+export function startDeviceUIRefresh() {
+    if (deviceUITimer) return;
+    deviceUITimer = setInterval(updateDeviceUI, 1000);
+}
+
+export function stopDeviceUIRefresh() {
+    if (deviceUITimer) {
+        clearInterval(deviceUITimer);
+        deviceUITimer = null;
+    }
+}
+
+/* ─── Toggle handlers ─── */
+
+export function toggleConCapture() {
+    if (state.deviceCapture.con.enabled) {
+        stopConCapture();
+    } else {
+        startConCapture();
+    }
+    checkDeviceTimers();
+}
+
+export function toggleCom1Capture() {
+    state.deviceCapture.com1.enabled = !state.deviceCapture.com1.enabled;
+    if (state.deviceCapture.com1.enabled) {
+        trace("DEVICE", "COM1 capture started");
+    } else {
+        trace("DEVICE", "COM1 capture stopped (" + state.deviceCapture.com1.bytes + " bytes)");
+    }
+    updateDeviceUI();
+    checkDeviceTimers();
+}
+
+export function toggleLpt1Capture() {
+    state.deviceCapture.lpt1.enabled = !state.deviceCapture.lpt1.enabled;
+    if (state.deviceCapture.lpt1.enabled) {
+        trace("DEVICE", "LPT1 capture started");
+    } else {
+        trace("DEVICE", "LPT1 capture stopped (" + state.deviceCapture.lpt1.bytes + " bytes)");
+    }
+    updateDeviceUI();
+    checkDeviceTimers();
+}
+
+/** Start/stop UI refresh timer depending on whether any device is active */
+function checkDeviceTimers() {
+    var anyActive = state.deviceCapture.con.enabled ||
+                    state.deviceCapture.com1.enabled ||
+                    state.deviceCapture.lpt1.enabled;
+    if (anyActive) {
+        startDeviceUIRefresh();
+    } else {
+        stopDeviceUIRefresh();
+    }
+}
+
+/* ─── Download handlers ─── */
+
+export function downloadConCapture() {
+    var data = state.deviceCapture.con.buffer;
+    if (!data) { announce("No CON data captured."); return; }
+    triggerDownload(
+        new Uint8Array(new TextEncoder().encode(data)),
+        "dos-con-output.txt", "text/plain"
+    );
+    announce("CON output downloaded. " + state.deviceCapture.con.bytes + " bytes.");
+}
+
+export function downloadCom1Capture() {
+    var cap = state.deviceCapture.com1;
+    if (!cap.buffer && cap.rawBytes.length === 0) {
+        announce("No COM1 data captured."); return;
+    }
+
+    /* Offer raw binary if raw toggle is on, otherwise text */
+    if (devCom1RawToggle && devCom1RawToggle.checked && cap.rawBytes.length > 0) {
+        triggerDownload(
+            new Uint8Array(cap.rawBytes),
+            "dos-com1-raw.bin", "application/octet-stream"
+        );
+        announce("COM1 raw binary downloaded. " + cap.rawBytes.length + " bytes.");
+    } else {
+        triggerDownload(
+            new Uint8Array(new TextEncoder().encode(cap.buffer)),
+            "dos-com1-output.txt", "text/plain"
+        );
+        announce("COM1 text output downloaded. " + cap.bytes + " bytes.");
+    }
+}
+
+export function downloadLpt1Capture() {
+    var data = state.deviceCapture.lpt1.buffer;
+    if (!data) { announce("No LPT1 data captured."); return; }
+    triggerDownload(
+        new Uint8Array(new TextEncoder().encode(data)),
+        "dos-lpt1-output.txt", "text/plain"
+    );
+    announce("LPT1 output downloaded. " + state.deviceCapture.lpt1.bytes + " bytes.");
+}
+
+export function downloadAllCaptures() {
+    var sections = [];
+
+    if (state.deviceCapture.con.buffer) {
+        sections.push("═══ CON (Console/Screen) ═══\n" + state.deviceCapture.con.buffer);
+    }
+    if (state.deviceCapture.com1.buffer) {
+        sections.push("═══ COM1 / AUX (Serial Port) ═══\n" + state.deviceCapture.com1.buffer);
+    }
+    if (state.deviceCapture.lpt1.buffer) {
+        sections.push("═══ LPT1 / PRN (Printer) ═══\n" + state.deviceCapture.lpt1.buffer);
+    }
+
+    if (sections.length === 0) {
+        announce("No device data captured.");
+        return;
+    }
+
+    var header = "DOS Device Monitor Capture\n" +
+                 "Generated: " + new Date().toISOString() + "\n" +
+                 "═══════════════════════════════════════════\n\n";
+
+    var text = header + sections.join("\n\n");
+    triggerDownload(
+        new Uint8Array(new TextEncoder().encode(text)),
+        "dos-device-capture.txt", "text/plain"
+    );
+    announce("All device captures downloaded.");
+}
+
+/* ─── Clear handlers ─── */
+
+export function clearConCapture() {
+    state.deviceCapture.con.buffer = "";
+    state.deviceCapture.con.bytes = 0;
+    state.deviceConPrevLines = [];
+    updateDeviceUI();
+}
+
+export function clearCom1Capture() {
+    state.deviceCapture.com1.buffer = "";
+    state.deviceCapture.com1.bytes = 0;
+    state.deviceCapture.com1.rawBytes = [];
+    updateDeviceUI();
+}
+
+export function clearLpt1Capture() {
+    state.deviceCapture.lpt1.buffer = "";
+    state.deviceCapture.lpt1.bytes = 0;
+    updateDeviceUI();
+}
+
+export function clearAllCaptures() {
+    clearConCapture();
+    clearCom1Capture();
+    clearLpt1Capture();
+    announce("All device captures cleared.");
+}

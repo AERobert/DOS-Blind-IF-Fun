@@ -15,6 +15,7 @@ import { refreshScreen, initBuffer, initScreenDOM, rowToString } from './screen.
 import { initTextCapBuffer, textCapParseByte, renderTextCapScreen, checkTextCapMarker } from './textcap.js';
 import { saveGameSettings } from './settings.js';
 import { getCheckedStoredFileData } from './file-storage.js';
+import { feedCom1Byte, feedLpt1Byte } from './devices.js';
 
 export function bootEmulator(autoLaunch) {
     const Ctor = window.V86Starter || window.V86;
@@ -75,6 +76,9 @@ export function bootEmulator(autoLaunch) {
     let serialTraceBuf = "";
     let serialTraceTimer = null;
     state.emulator.add_listener("serial0-output-byte", function(byte) {
+        /* Feed device capture (captures ALL serial bytes before any filtering) */
+        feedCom1Byte(byte);
+
         /* Batch serial bytes into short trace lines to avoid per-byte spam */
         if (state.traceEnabled) {
             if (byte >= 32 && byte < 127) {
@@ -116,6 +120,7 @@ export function bootEmulator(autoLaunch) {
         }
 
         /* Original serial capture for printer redirect (no TextCap) */
+        feedLpt1Byte(byte);
         if (byte === 13) return;
         if (byte === 10) { state.serialBuffer += "\n"; return; }
         if (byte >= 32 && byte < 127) state.serialBuffer += String.fromCharCode(byte);

@@ -235,6 +235,96 @@
         </div>
     </details>
 
+    <!-- DOS Device Monitor -->
+    <details class="cpanel" id="section-device-monitor">
+        <summary><h2>DOS Device Monitor</h2></summary>
+        <div class="cpanel-body">
+        <p style="margin:0 0 0.6rem;font-size:0.9rem;">
+            Monitor DOS special device output in real-time. Enable a device to start capturing,
+            then download the output as a file. Try typing <code>COM1</code> or <code>AUX</code>
+            as a game transcript filename to stream text directly to the serial port.
+        </p>
+
+        <!-- CON (Console/Screen) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-con-toggle"> CON (Console)
+                </label>
+                <span id="dev-con-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-con-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-con-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <pre id="dev-con-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                Captures screen text output. Records changed lines as they appear on screen.
+            </p>
+        </div>
+
+        <!-- COM1 / AUX (Serial Port) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-com1-toggle"> COM1 / AUX
+                </label>
+                <span id="dev-com1-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-com1-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-com1-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.5rem;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com1-raw-toggle"> Include hex for non-printable bytes
+                </label>
+            </div>
+            <pre id="dev-com1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                Captures all serial port output (v86 serial0). If a game writes to COM1 or AUX,
+                data appears here in real-time. Includes LPT1 redirect data if MODE LPT1:=COM1: is active.
+            </p>
+        </div>
+
+        <!-- LPT1 / PRN (Printer) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-lpt1-toggle"> PRN / LPT1
+                </label>
+                <span id="dev-lpt1-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-lpt1-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-lpt1-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <pre id="dev-lpt1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                Printer output captured via <code>MODE LPT1:=COM1:</code> redirect (sent at boot).
+                Shows only printable text (filtered from serial stream). v86 does not expose
+                the parallel port directly, so this relies on the DOS redirect.
+            </p>
+        </div>
+
+        <div class="panel-row" style="margin-top:0.5rem;gap:0.3rem;">
+            <button id="dev-download-all" class="btn-primary btn-sm">Download All</button>
+            <button id="dev-clear-all" class="btn-secondary btn-sm">Clear All</button>
+        </div>
+
+        <div style="margin-top:0.6rem;border-top:1px solid var(--surface-border,#333);padding-top:0.5rem;">
+            <p style="margin:0;font-size:0.8rem;color:var(--dim,#888);">
+                <strong>Tip:</strong> To test real-time transcript capture without file flushing issues,
+                start COM1 monitoring above, then in the game enter <code>COM1</code> or <code>AUX</code>
+                as the transcript/script filename. If the game accepts it, transcript text streams directly
+                to the serial port and appears here instantly. You can also try <code>PRN</code> or
+                <code>LPT1</code> for printer output (redirected to COM1 at boot).
+            </p>
+            <p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--dim,#888);">
+                <strong>DOS device names:</strong>
+                CON = console (screen/keyboard),
+                COM1 = serial port (AUX is alias),
+                LPT1 = printer (PRN is alias),
+                NUL = discard (/dev/null equivalent).
+            </p>
+        </div>
+        </div>
+    </details>
+
     <!-- Command Input -->
     <section class="input-section" aria-labelledby="command-input-heading">
         <h2 id="command-input-heading" style="font-size:1.1rem;font-weight:600;margin:0 0 0.5rem;">Command Input <span id="mode-indicator" class="insert">INSERT</span></h2>
@@ -470,6 +560,7 @@
         <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
         <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
         <p><strong>Adding new games</strong>: use the "Package New Game" panel to upload a ZIP of game files. It creates a disk image (floppy or HDD) and a config .js file. Place the .img in the same folder as this HTML file, put the .js file in <code>js/games/</code>, and add an import line for it in <code>js/game-configs.js</code>. Or use "Load Custom .img" to load any disk image at runtime without a config file.</p>
+        <p><strong>DOS Device Monitor</strong>: monitors output from DOS special devices (CON, COM1/AUX, PRN/LPT1) and captures it to downloadable files. This is useful for testing real-time transcript capture: enable COM1 monitoring, then enter <code>COM1</code> or <code>AUX</code> as the transcript filename in the game. If the game accepts it, transcript text streams directly to the serial port with zero filesystem flush delay. The monitor captures all data in real-time. CON captures screen text changes, COM1 captures raw serial port output (including LPT1 redirect data), and LPT1 captures filtered printable printer output.</p>
     </details>
 </div>
 
