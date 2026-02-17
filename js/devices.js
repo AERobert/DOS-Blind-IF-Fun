@@ -22,13 +22,18 @@ import { state,
          devConToggle, devConStatus, devConDownloadBtn, devConClearBtn,
          devCom1Toggle, devCom1Status, devCom1DownloadBtn, devCom1ClearBtn,
          devCom2Toggle, devCom2Status, devCom2DownloadBtn, devCom2ClearBtn, devCom2Preview,
+         devCom2SpeakToggle, devCom2MuteScreenToggle, devCom2ReplaceScreenToggle,
          devLpt1Toggle, devLpt1Status, devLpt1DownloadBtn, devLpt1ClearBtn,
          devDownloadAllBtn, devClearAllBtn, devCom1RawToggle, devCom1StripAnsiToggle,
-         devConPreview, devCom1Preview, devLpt1Preview } from './state.js';
+         devConPreview, devCom1Preview, devLpt1Preview,
+         promptCharInput } from './state.js';
 import { ROWS, COLS } from './constants.js';
 import { triggerDownload, announce } from './ui-helpers.js';
 import { trace } from './trace.js';
+import { speak } from './speech.js';
 import { rowToString } from './screen.js';
+import { addToHistory, updateHistNav } from './history.js';
+import { stripBorder } from './screen.js';
 
 /* ─── CON (Console) capture ─── */
 
@@ -170,11 +175,17 @@ export function feedCom1Byte(byte) {
 
 /* ─── COM2 (Serial Port 2 — clean transcript channel) ─── */
 
+/** Debounce delay for batching lines before speaking (ms) */
+var COM2_SPEECH_DEBOUNCE = 600;
+
 /**
  * Called from emulator.js for every serial1-output-byte (COM2).
  * This is a CLEAN channel — TextCap only uses COM1, so COM2 has
  * only data explicitly sent to it (e.g. game transcript via "script COM2").
  * No ANSI stripping needed since there's no TextCap interference.
+ *
+ * When "Speak responses" is enabled, accumulates lines and uses a
+ * debounce timer + prompt detection to speak game responses.
  */
 export function feedCom2Byte(byte) {
     if (!state.deviceCapture.com2.enabled) return;
@@ -182,12 +193,113 @@ export function feedCom2Byte(byte) {
     state.deviceCapture.com2.bytes++;
 
     if (byte === 0x0D) return; /* CR — skip */
+
     if (byte === 0x0A) {
-        state.deviceCapture.com2.buffer += "\n";
+        /* Complete line arrived */
+        var line = state.com2LineBuffer;
+        state.com2LineBuffer = "";
+
+        /* Always append to download buffer */
+        state.deviceCapture.com2.buffer += line + "\n";
+
+        /* Speech processing */
+        if (devCom2SpeakToggle && devCom2SpeakToggle.checked) {
+            processCom2Line(line);
+        }
         return;
     }
+
     if (byte >= 0x20 && byte < 0x7F) {
-        state.deviceCapture.com2.buffer += String.fromCharCode(byte);
+        state.com2LineBuffer += String.fromCharCode(byte);
+    }
+}
+
+/**
+ * Process a complete line from COM2 for auto-speech.
+ * Uses prompt detection to separate player input from game responses.
+ * Batches response lines with a debounce timer.
+ */
+function processCom2Line(line) {
+    var trimmed = line.trim();
+    if (trimmed.length === 0) return; /* skip blank lines */
+
+    var promptStr = (promptCharInput && promptCharInput.value) || ">";
+
+    /* Check if this line is a player input prompt */
+    var stripped = stripBorder(trimmed);
+    var isPrompt = stripped.startsWith(promptStr);
+
+    if (isPrompt) {
+        /* Prompt line = end of a response block. Speak what we have immediately. */
+        flushCom2Speech();
+        return;
+    }
+
+    /* It's a game response line — add to pending batch */
+    state.com2SpeechPending.push(trimmed);
+
+    /* Reset debounce timer — more lines may follow */
+    clearTimeout(state.com2SpeechTimer);
+    state.com2SpeechTimer = setTimeout(flushCom2Speech, COM2_SPEECH_DEBOUNCE);
+}
+
+/**
+ * Speak all pending COM2 response lines as a single utterance.
+ * Also adds to response log for F7/F8 navigation.
+ */
+function flushCom2Speech() {
+    clearTimeout(state.com2SpeechTimer);
+    state.com2SpeechTimer = null;
+
+    if (state.com2SpeechPending.length === 0) return;
+
+    var lines = state.com2SpeechPending;
+    state.com2SpeechPending = [];
+
+    var text = lines.join(". ");
+
+    trace("COM2", "Speaking " + lines.length + " lines: " + text.substring(0, 120));
+
+    /* Cancel any ongoing speech (screen changes etc.) and speak response */
+    speak(text);
+
+    /* Add to response log for F7/F8 navigation */
+    var entry = { type: "response", lines: lines };
+    state.responseLog.push(entry);
+    state.responseNavIndex = state.responseLog.length - 1;
+    updateHistNav();
+    for (var i = 0; i < lines.length; i++) {
+        addToHistory(lines[i], false);
+    }
+
+    /* If recording, add to transcript buffer */
+    if (state.isRecording) {
+        state.transcriptBuffer += lines.join("\n") + "\n\n";
+    }
+
+    /* Render to screen DOM if replace-screen is enabled */
+    if (devCom2ReplaceScreenToggle && devCom2ReplaceScreenToggle.checked) {
+        renderCom2ToScreen();
+    }
+}
+
+/**
+ * Render the last ROWS of COM2 transcript to the accessible screen.
+ * This replaces the VGA screen content with clean transcript text.
+ */
+function renderCom2ToScreen() {
+    var allLines = state.deviceCapture.com2.buffer.split("\n");
+    var startIdx = Math.max(0, allLines.length - ROWS);
+    var displayLines = allLines.slice(startIdx);
+
+    for (var r = 0; r < ROWS; r++) {
+        var lineText = (r < displayLines.length) ? displayLines[r] : "";
+        var el = document.getElementById("screen-line-" + r);
+        if (el) {
+            el.textContent = lineText || "\u00A0";
+            el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (lineText || "blank"));
+        }
+        state.prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
     }
 }
 
@@ -372,6 +484,11 @@ export function toggleCom2Capture() {
         trace("DEVICE", "COM2 capture started (clean transcript channel)");
     } else {
         trace("DEVICE", "COM2 capture stopped (" + state.deviceCapture.com2.bytes + " bytes)");
+        /* Reset speech state on disable */
+        state.com2LineBuffer = "";
+        state.com2SpeechPending = [];
+        clearTimeout(state.com2SpeechTimer);
+        state.com2SpeechTimer = null;
     }
     updateDeviceUI();
     checkDeviceTimers();
@@ -508,6 +625,10 @@ export function clearCom1Capture() {
 export function clearCom2Capture() {
     state.deviceCapture.com2.buffer = "";
     state.deviceCapture.com2.bytes = 0;
+    state.com2LineBuffer = "";
+    state.com2SpeechPending = [];
+    clearTimeout(state.com2SpeechTimer);
+    state.com2SpeechTimer = null;
     updateDeviceUI();
 }
 

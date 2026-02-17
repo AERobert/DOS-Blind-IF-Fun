@@ -39,6 +39,11 @@ export const state = {
         lpt1: { enabled: false, buffer: "", bytes: 0 },
     },
     deviceConPrevLines: [],  /* previous screen snapshot for CON diff */
+    /* COM2 auto-speak state */
+    com2LineBuffer: "",          /* current incomplete line being accumulated */
+    com2SpeechPending: [],       /* complete lines waiting to be spoken */
+    com2SpeechTimer: null,       /* debounce timer for batching lines */
+    com2MuteScreen: false,       /* cached flag: suppress screen speech */
 };
 
 /* ── DOM Element References ── */
@@ -154,3 +159,8 @@ export const devCom1StripAnsiToggle = $("dev-com1-strip-ansi");
 export const devConPreview = $("dev-con-preview");
 export const devCom1Preview = $("dev-com1-preview");
 export const devLpt1Preview = $("dev-lpt1-preview");
+
+/* COM2 auto-speak DOM references */
+export const devCom2SpeakToggle = $("dev-com2-speak-toggle");
+export const devCom2MuteScreenToggle = $("dev-com2-mute-screen-toggle");
+export const devCom2ReplaceScreenToggle = $("dev-com2-replace-screen-toggle");

@@ -1,4 +1,4 @@
-import { state, screenEl, promptCharInput, skipDecorToggle, promptDepthSelect, speakAfterCmdToggle, autoSpeakToggle, transcriptReplaceScreenToggle, transcriptMuteScreenToggle } from './state.js';
+import { state, screenEl, promptCharInput, skipDecorToggle, promptDepthSelect, speakAfterCmdToggle, autoSpeakToggle, transcriptReplaceScreenToggle, transcriptMuteScreenToggle, devCom2SpeakToggle, devCom2MuteScreenToggle } from './state.js';
 import { ROWS, COLS, CP437, BOX_RE, BORDER_STRIP_RE, BORDER_STRIP_END_RE } from './constants.js';
 import { speak } from './speech.js';
 import { trace, traceTextPattern } from './trace.js';
@@ -148,8 +148,11 @@ export function onScreenSettled() {
         traceTextPattern(state.pendingChanges.join(" "));
     }
 
-    /* Mute screen speech: either explicitly checked, or during auto-flush. */
-    if (transcriptMuteScreenToggle.checked || state.autoFlushPending) {
+    /* Mute screen speech: explicitly checked, during auto-flush,
+     * or COM2 auto-speak is active with its mute toggle on. */
+    var com2Muting = devCom2SpeakToggle && devCom2SpeakToggle.checked &&
+                     devCom2MuteScreenToggle && devCom2MuteScreenToggle.checked;
+    if (transcriptMuteScreenToggle.checked || state.autoFlushPending || com2Muting) {
         trace("SCREEN", "Muted — discarding " + state.pendingChanges.length + " changes");
         state.pendingChanges = [];
         state.awaitingResponse = false;

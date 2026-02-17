@@ -296,11 +296,24 @@
                 <button id="dev-com2-download" class="btn-secondary btn-sm" disabled>Download</button>
                 <button id="dev-com2-clear" class="btn-secondary btn-sm" disabled>Clear</button>
             </div>
+            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;font-weight:600;color:var(--success,#2d8a4e);">
+                    <input type="checkbox" id="dev-com2-speak-toggle"> Speak responses
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com2-mute-screen-toggle" checked> Mute screen speech
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com2-replace-screen-toggle"> Show transcript on screen
+                </label>
+            </div>
             <pre id="dev-com2-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
             <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
                 <strong>Recommended for transcript capture.</strong> COM2 is a clean serial port
                 not used by TextCap. In the game, type <code>script COM2</code> to send transcript
-                text here with zero interference and no file flushing delays.
+                text here. <strong>Speak responses</strong> auto-speaks each game response as it
+                arrives — no file flushing needed, instant speech. Uses the prompt character
+                from Settings to detect where responses start and end.
             </p>
         </div>
 
