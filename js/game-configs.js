@@ -22,8 +22,9 @@ import mindwheel from './games/mindwheel.js';
 import timequest from './games/timequest.js';
 import eamondx from './games/eamondx.js';
 import humbug from './games/humbug.js';
+import DungeonOfDunjin from './games/DungeonOfDunjin.js';
 
-const gameList = [tzero, mindwheel, timequest, eamondx, humbug];
+const gameList = [tzero, mindwheel, timequest, eamondx, humbug, DungeonOfDunjin];
 
 export const KNOWN_GAMES = {};
 for (const game of gameList) {
