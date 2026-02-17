@@ -15,7 +15,7 @@ import { refreshScreen, initBuffer, initScreenDOM, rowToString } from './screen.
 import { initTextCapBuffer, textCapParseByte, renderTextCapScreen, checkTextCapMarker } from './textcap.js';
 import { saveGameSettings } from './settings.js';
 import { getCheckedStoredFileData } from './file-storage.js';
-import { feedCom1Byte, feedLpt1Byte } from './devices.js';
+import { feedCom1Byte, feedLpt1Byte, feedCom2Byte } from './devices.js';
 
 export function bootEmulator(autoLaunch) {
     const Ctor = window.V86Starter || window.V86;
@@ -49,6 +49,8 @@ export function bootEmulator(autoLaunch) {
         screen_container: document.getElementById("v86-screen-container"),
         memory_size: 32 * 1024 * 1024, /* 32MB for larger games */
         autostart: true,
+        uart1: true,  /* Enable COM2 — clean serial port for transcript capture */
+        uart2: true,  /* Enable COM3 — available for future use */
     };
 
     /* Mount game disk as floppy B: or hard disk C: */
@@ -126,6 +128,12 @@ export function bootEmulator(autoLaunch) {
         if (byte === 13) return;
         if (byte === 10) { state.serialBuffer += "\n"; return; }
         if (byte >= 32 && byte < 127) state.serialBuffer += String.fromCharCode(byte);
+    });
+
+    /* Capture COM2 (serial1) — a clean channel not used by TextCap.
+     * Games can write transcript to COM2 for interference-free capture. */
+    state.emulator.add_listener("serial1-output-byte", function(byte) {
+        feedCom2Byte(byte);
     });
 
     let checks = 0;

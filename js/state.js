@@ -35,6 +35,7 @@ export const state = {
     deviceCapture: {
         con:  { enabled: false, buffer: "", bytes: 0 },
         com1: { enabled: false, buffer: "", bytes: 0, rawBytes: [] },
+        com2: { enabled: false, buffer: "", bytes: 0 },
         lpt1: { enabled: false, buffer: "", bytes: 0 },
     },
     deviceConPrevLines: [],  /* previous screen snapshot for CON diff */
@@ -137,6 +138,11 @@ export const devCom1Toggle = $("dev-com1-toggle");
 export const devCom1Status = $("dev-com1-status");
 export const devCom1DownloadBtn = $("dev-com1-download");
 export const devCom1ClearBtn = $("dev-com1-clear");
+export const devCom2Toggle = $("dev-com2-toggle");
+export const devCom2Status = $("dev-com2-status");
+export const devCom2DownloadBtn = $("dev-com2-download");
+export const devCom2ClearBtn = $("dev-com2-clear");
+export const devCom2Preview = $("dev-com2-preview");
 export const devLpt1Toggle = $("dev-lpt1-toggle");
 export const devLpt1Status = $("dev-lpt1-status");
 export const devLpt1DownloadBtn = $("dev-lpt1-download");

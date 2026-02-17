@@ -21,6 +21,7 @@
 import { state,
          devConToggle, devConStatus, devConDownloadBtn, devConClearBtn,
          devCom1Toggle, devCom1Status, devCom1DownloadBtn, devCom1ClearBtn,
+         devCom2Toggle, devCom2Status, devCom2DownloadBtn, devCom2ClearBtn, devCom2Preview,
          devLpt1Toggle, devLpt1Status, devLpt1DownloadBtn, devLpt1ClearBtn,
          devDownloadAllBtn, devClearAllBtn, devCom1RawToggle, devCom1StripAnsiToggle,
          devConPreview, devCom1Preview, devLpt1Preview } from './state.js';
@@ -167,6 +168,29 @@ export function feedCom1Byte(byte) {
     }
 }
 
+/* ─── COM2 (Serial Port 2 — clean transcript channel) ─── */
+
+/**
+ * Called from emulator.js for every serial1-output-byte (COM2).
+ * This is a CLEAN channel — TextCap only uses COM1, so COM2 has
+ * only data explicitly sent to it (e.g. game transcript via "script COM2").
+ * No ANSI stripping needed since there's no TextCap interference.
+ */
+export function feedCom2Byte(byte) {
+    if (!state.deviceCapture.com2.enabled) return;
+
+    state.deviceCapture.com2.bytes++;
+
+    if (byte === 0x0D) return; /* CR — skip */
+    if (byte === 0x0A) {
+        state.deviceCapture.com2.buffer += "\n";
+        return;
+    }
+    if (byte >= 0x20 && byte < 0x7F) {
+        state.deviceCapture.com2.buffer += String.fromCharCode(byte);
+    }
+}
+
 /**
  * Called from emulator.js for ALL serial bytes (before TextCap processing).
  * Strips ANSI escape sequences to produce clean readable text.
@@ -257,6 +281,7 @@ function updateDeviceStatusLine(dev) {
     var preview = null;
     if (dev === "con") { statusEl = devConStatus; preview = devConPreview; }
     else if (dev === "com1") { statusEl = devCom1Status; preview = devCom1Preview; }
+    else if (dev === "com2") { statusEl = devCom2Status; preview = devCom2Preview; }
     else if (dev === "lpt1") { statusEl = devLpt1Status; preview = devLpt1Preview; }
 
     if (statusEl) {
@@ -284,6 +309,7 @@ function updateDeviceStatusLine(dev) {
 export function updateDeviceUI() {
     updateDeviceStatusLine("con");
     updateDeviceStatusLine("com1");
+    updateDeviceStatusLine("com2");
     updateDeviceStatusLine("lpt1");
 
     /* Enable/disable download/clear buttons */
@@ -294,6 +320,10 @@ export function updateDeviceUI() {
     if (devCom1DownloadBtn) {
         devCom1DownloadBtn.disabled = state.deviceCapture.com1.bytes === 0;
         devCom1ClearBtn.disabled = state.deviceCapture.com1.bytes === 0;
+    }
+    if (devCom2DownloadBtn) {
+        devCom2DownloadBtn.disabled = state.deviceCapture.com2.bytes === 0;
+        devCom2ClearBtn.disabled = state.deviceCapture.com2.bytes === 0;
     }
     if (devLpt1DownloadBtn) {
         devLpt1DownloadBtn.disabled = state.deviceCapture.lpt1.bytes === 0;
@@ -336,6 +366,17 @@ export function toggleCom1Capture() {
     checkDeviceTimers();
 }
 
+export function toggleCom2Capture() {
+    state.deviceCapture.com2.enabled = !state.deviceCapture.com2.enabled;
+    if (state.deviceCapture.com2.enabled) {
+        trace("DEVICE", "COM2 capture started (clean transcript channel)");
+    } else {
+        trace("DEVICE", "COM2 capture stopped (" + state.deviceCapture.com2.bytes + " bytes)");
+    }
+    updateDeviceUI();
+    checkDeviceTimers();
+}
+
 export function toggleLpt1Capture() {
     state.deviceCapture.lpt1.enabled = !state.deviceCapture.lpt1.enabled;
     if (state.deviceCapture.lpt1.enabled) {
@@ -351,6 +392,7 @@ export function toggleLpt1Capture() {
 function checkDeviceTimers() {
     var anyActive = state.deviceCapture.con.enabled ||
                     state.deviceCapture.com1.enabled ||
+                    state.deviceCapture.com2.enabled ||
                     state.deviceCapture.lpt1.enabled;
     if (anyActive) {
         startDeviceUIRefresh();
@@ -393,6 +435,16 @@ export function downloadCom1Capture() {
     }
 }
 
+export function downloadCom2Capture() {
+    var data = state.deviceCapture.com2.buffer;
+    if (!data) { announce("No COM2 data captured."); return; }
+    triggerDownload(
+        new Uint8Array(new TextEncoder().encode(data)),
+        "dos-com2-transcript.txt", "text/plain"
+    );
+    announce("COM2 transcript downloaded. " + state.deviceCapture.com2.bytes + " bytes.");
+}
+
 export function downloadLpt1Capture() {
     var data = state.deviceCapture.lpt1.buffer;
     if (!data) { announce("No LPT1 data captured."); return; }
@@ -410,7 +462,10 @@ export function downloadAllCaptures() {
         sections.push("═══ CON (Console/Screen) ═══\n" + state.deviceCapture.con.buffer);
     }
     if (state.deviceCapture.com1.buffer) {
-        sections.push("═══ COM1 / AUX (Serial Port) ═══\n" + state.deviceCapture.com1.buffer);
+        sections.push("═══ COM1 / AUX (Serial Port 1) ═══\n" + state.deviceCapture.com1.buffer);
+    }
+    if (state.deviceCapture.com2.buffer) {
+        sections.push("═══ COM2 (Serial Port 2 — Transcript) ═══\n" + state.deviceCapture.com2.buffer);
     }
     if (state.deviceCapture.lpt1.buffer) {
         sections.push("═══ LPT1 / PRN (Printer) ═══\n" + state.deviceCapture.lpt1.buffer);
@@ -450,6 +505,12 @@ export function clearCom1Capture() {
     updateDeviceUI();
 }
 
+export function clearCom2Capture() {
+    state.deviceCapture.com2.buffer = "";
+    state.deviceCapture.com2.bytes = 0;
+    updateDeviceUI();
+}
+
 export function clearLpt1Capture() {
     state.deviceCapture.lpt1.buffer = "";
     state.deviceCapture.lpt1.bytes = 0;
@@ -460,6 +521,7 @@ export function clearLpt1Capture() {
 export function clearAllCaptures() {
     clearConCapture();
     clearCom1Capture();
+    clearCom2Capture();
     clearLpt1Capture();
     announce("All device captures cleared.");
 }
