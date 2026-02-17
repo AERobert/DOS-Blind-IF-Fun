@@ -81,13 +81,6 @@ const BORDER_STRIP_RE = /^[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u
 const BORDER_STRIP_END_RE = /[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580│║─═]+$/;
 
 /*
- * Known game presets: maps a disk image filename to default autorun
- * command and prompt character(s). Extend this list as you add games.
- * The player scans for each of these files via HEAD requests at startup.
+ * Known game presets are now defined in individual files under js/games/.
+ * See js/game-configs.js for the KNOWN_GAMES registry and documentation.
  */
-const KNOWN_GAMES = {
-    "tzero-data.img":  { label: "T-Zero",        autorun: "T-ZERO.EXE",   prompt: "\u2666\u25ba", depth: "last",  disk: "floppy" },
-    "mindwheel.img":   { label: "Mindwheel",      autorun: "MNDWHEEL.BAT", prompt: ">",            depth: "below", disk: "floppy" },
-    "timequest.img":   { label: "Time Quest",     autorun: "TQ.EXE",       prompt: ">",            depth: "below", disk: "hdd", graphics: true, textcap: true },
-    "eamondx.img":     { label: "Eamon Deluxe",   autorun: "EAMONDX.BAT",  prompt: "?",            depth: "below", disk: "hdd", singleKey: true },
-};
