@@ -1,19 +1,22 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * UI Helpers
  * ═══════════════════════════════════════════ */
 
-function setStatus(s, m) { statusEl.textContent = m; statusEl.className = s; }
+import { state, statusEl, announcer, commandInput,
+         sendBtn, enterOnlyBtn, speakScreenBtn, speakNewBtn, speakLastBtn,
+         fmRefreshBtn, fmUploadBtn, fmDlFloppyBtn,
+         stateSaveBtn, stateRestoreBtn, recordBtn } from './state.js';
+
+export function setStatus(s, m) { statusEl.textContent = m; statusEl.className = s; }
 
 /** Push a message to the aria-live announcer for screen readers */
-function announce(msg) {
+export function announce(msg) {
     announcer.textContent = "";
     setTimeout(function() { announcer.textContent = msg; }, 100);
 }
 
-function enableInput() {
-    isReady = true;
+export function enableInput() {
+    state.isReady = true;
     commandInput.disabled = false;
     commandInput.placeholder = "Type command here...";
     sendBtn.disabled = false;
@@ -31,7 +34,7 @@ function enableInput() {
 }
 
 /** Trigger a browser download */
-function triggerDownload(data, filename, mime) {
+export function triggerDownload(data, filename, mime) {
     const blob = new Blob([data], { type: mime });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -41,7 +44,8 @@ function triggerDownload(data, filename, mime) {
     setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 200);
 }
 
-function formatSize(bytes) {
+export function formatSize(bytes) {
     if (bytes < 1024) return bytes + " B";
-    return (bytes / 1024).toFixed(1) + " KB";
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+    return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }

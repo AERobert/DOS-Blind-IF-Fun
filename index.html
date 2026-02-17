@@ -297,6 +297,97 @@
         </div>
     </details>
 
+    <!-- Package New Game -->
+    <details class="cpanel" id="section-packager">
+        <summary><h2>Package New Game</h2></summary>
+        <div class="cpanel-body">
+        <p style="margin:0 0 0.75rem;font-size:0.9rem;color:var(--text-secondary);">
+            Upload a ZIP file containing game files to create a disk image and configuration.
+            Files under ~1.4 MB will produce a 1.44 MB floppy image (B: drive);
+            larger sets produce a hard disk image (C: drive).
+        </p>
+
+        <!-- Step 1: Upload ZIP -->
+        <div style="margin-bottom:0.75rem;">
+            <h3 style="font-size:0.95rem;margin:0 0 0.4rem;">1. Upload Game Files (ZIP)</h3>
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+                <button id="pkg-upload-btn" class="btn-secondary btn-sm">Select ZIP File...</button>
+                <input type="file" id="pkg-zip-input" style="display:none" accept=".zip">
+                <span id="pkg-zip-status" style="font-size:0.85rem;color:var(--text-secondary);"></span>
+            </div>
+            <div id="pkg-file-list" style="margin-top:0.4rem;font-size:0.85rem;max-height:10rem;overflow-y:auto;"></div>
+        </div>
+
+        <!-- Step 2: Configure -->
+        <div style="margin-bottom:0.75rem;">
+            <h3 style="font-size:0.95rem;margin:0 0 0.4rem;">2. Configure Game Settings</h3>
+            <div class="panel-row" style="gap:0.75rem;">
+                <div class="field-group" style="min-width:150px;">
+                    <label for="pkg-label">Game label</label>
+                    <input type="text" id="pkg-label" class="field-input" placeholder="My Game" spellcheck="false">
+                </div>
+                <div class="field-group" style="min-width:150px;">
+                    <label for="pkg-img-filename">Disk image filename</label>
+                    <input type="text" id="pkg-img-filename" class="field-input" placeholder="my-game.img" spellcheck="false">
+                </div>
+            </div>
+            <div class="panel-row" style="gap:0.75rem;margin-top:0.5rem;">
+                <div class="field-group" style="min-width:150px;">
+                    <label for="pkg-autorun">Auto-run command</label>
+                    <select id="pkg-autorun">
+                        <option value="">(none)</option>
+                    </select>
+                </div>
+                <div class="field-group" style="min-width:100px;max-width:140px;">
+                    <label for="pkg-prompt">Prompt string</label>
+                    <input type="text" id="pkg-prompt" class="field-input" value=">" spellcheck="false">
+                </div>
+                <div class="field-group" style="min-width:160px;max-width:220px;">
+                    <label for="pkg-depth">Response extraction</label>
+                    <select id="pkg-depth">
+                        <option value="below">After last prompt</option>
+                        <option value="last">Between last two prompts</option>
+                    </select>
+                </div>
+            </div>
+            <div class="panel-row" style="gap:0.75rem;margin-top:0.5rem;">
+                <div class="field-group" style="min-width:120px;max-width:160px;">
+                    <label for="pkg-disk-type">Disk type</label>
+                    <select id="pkg-disk-type">
+                        <option value="auto">Auto-detect</option>
+                        <option value="floppy">Floppy (B:)</option>
+                        <option value="hdd">Hard disk (C:)</option>
+                    </select>
+                </div>
+            </div>
+            <div class="panel-row" style="gap:1rem;margin-top:0.5rem;">
+                <div class="toggle-group">
+                    <input type="checkbox" id="pkg-graphics">
+                    <label for="pkg-graphics">Graphics mode</label>
+                </div>
+                <div class="toggle-group">
+                    <input type="checkbox" id="pkg-textcap">
+                    <label for="pkg-textcap">TextCap TSR</label>
+                </div>
+                <div class="toggle-group">
+                    <input type="checkbox" id="pkg-single-key">
+                    <label for="pkg-single-key">Single-key mode</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Build & Download -->
+        <div>
+            <h3 style="font-size:0.95rem;margin:0 0 0.4rem;">3. Build &amp; Download</h3>
+            <div class="panel-row" style="gap:0.5rem;">
+                <button id="pkg-build-img-btn" class="btn-primary btn-sm" disabled>Create Disk Image</button>
+                <button id="pkg-download-config-btn" class="btn-secondary btn-sm" disabled>Download Config (.js)</button>
+            </div>
+            <div id="pkg-build-status" role="status" style="margin-top:0.4rem;font-size:0.85rem;color:var(--text-secondary);"></div>
+        </div>
+        </div>
+    </details>
+
     <!-- Debug Tracing -->
     <details class="cpanel" id="section-trace">
         <summary><h2>Debug Tracing</h2></summary>
@@ -378,31 +469,12 @@
         <p><strong>Mouse click simulation</strong>: in READ mode, press <kbd>c</kbd> to simulate a left-click at the reading cursor's position. This lets you interact with clickable menus in games like Time Quest and Eamon Deluxe. Use <kbd>j</kbd>/<kbd>k</kbd> to navigate to the desired line and <kbd>l</kbd>/<kbd>h</kbd> to move to the exact column, then press <kbd>c</kbd>. Press <kbd>C</kbd> (Shift+c) for right-click.</p>
         <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
         <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
-        <p>To add a new game: place its .img file in the same folder as this HTML file, then add an entry to the KNOWN_GAMES object in the source. Set disk type to "floppy" for 1.44MB FAT12 images (B: drive) or "hdd" for larger FAT16 images (C: drive). Or use "Load Custom .img" to load any disk image at runtime.</p>
+        <p><strong>Adding new games</strong>: use the "Package New Game" panel to upload a ZIP of game files. It creates a disk image (floppy or HDD) and a config .js file. Place the .img in the same folder as this HTML file, put the .js file in <code>js/games/</code>, and add an import line for it in <code>js/game-configs.js</code>. Or use "Load Custom .img" to load any disk image at runtime without a config file.</p>
     </details>
 </div>
 
 <script src="libv86.js"></script>
-<script src="js/constants.js"></script>
-<script src="js/state.js"></script>
-<script src="js/ui-helpers.js"></script>
-<script src="js/trace.js"></script>
-<script src="js/settings.js"></script>
-<script src="js/speech.js"></script>
-<script src="js/games.js"></script>
-<script src="js/screen.js"></script>
-<script src="js/textcap.js"></script>
-<script src="js/fat.js"></script>
-<script src="js/transcript.js"></script>
-<script src="js/history.js"></script>
-<script src="js/commands.js"></script>
-<script src="js/reading-mode.js"></script>
-<script src="js/speech-actions.js"></script>
-<script src="js/file-manager.js"></script>
-<script src="js/file-storage.js"></script>
-<script src="js/state-save.js"></script>
-<script src="js/emulator.js"></script>
-<script src="js/event-handlers.js"></script>
-<script src="js/init.js"></script>
+<script src="lib/fflate.min.js"></script>
+<script type="module" src="js/init.js"></script>
 </body>
 </html>

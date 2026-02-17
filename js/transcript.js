@@ -1,5 +1,3 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * Transcript Capture — reads game's transcript file from disk
  * ═══════════════════════════════════════════
@@ -11,13 +9,24 @@
  * the file is closed, but the cluster data is there.
  */
 
+import { state, promptCharInput, transcriptWatchFilename, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptCapState, transcriptCapInfo, transcriptPollSpeedSelect, transcriptAutoSpeakToggle, transcriptReplaceScreenToggle, transcriptMuteScreenToggle, transcriptAutoFlushToggle, transcriptAutoFlushOptions, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptStats, transcriptPreview, transcriptFilename } from './state.js';
+import { ROWS, COLS, TRANSCRIPT_TIMEOUT_MS } from './constants.js';
+import { speak } from './speech.js';
+import { announce, triggerDownload } from './ui-helpers.js';
+import { trace } from './trace.js';
+import { traceFATGeometry } from './trace.js';
+import { getDiskBytes, parseFATGeometry, parseFATDir, readFATFile, readFATEntry, isEOF } from './fat.js';
+import { typeToDOS } from './commands.js';
+import { addToHistory, updateHistNav } from './history.js';
+import { stripBorder } from './screen.js';
+
 /**
  * Read ALL cluster data for a file by following its FAT chain.
  * Unlike readFATFile(), this ignores the directory entry's size field
  * (which stays 0 until fclose). Instead it follows the cluster chain
  * and reads every allocated cluster.
  */
-function readFATFileByChain(img, geo, firstCluster) {
+export function readFATFileByChain(img, geo, firstCluster) {
     if (firstCluster < 2) return null;
 
     const chunks = [];
@@ -52,8 +61,8 @@ function readFATFileByChain(img, geo, firstCluster) {
  * Poll the game disk for the transcript file.
  * Called on a timer at the interval selected in the poll speed dropdown.
  */
-function pollTranscriptFile() {
-    if (!emulator || !isReady) return;
+export function pollTranscriptFile() {
+    if (!state.emulator || !state.isReady) return;
 
     const text = readTranscriptFromDisk();
     if (text === null || text.length === 0) {
@@ -61,31 +70,31 @@ function pollTranscriptFile() {
         return;
     }
 
-    trace("POLL", "Disk read: " + text.length + " bytes (lastLength=" + transcriptPollLastLength + ")");
+    trace("POLL", "Disk read: " + text.length + " bytes (lastLength=" + state.transcriptPollLastLength + ")");
 
     /* Check if there's new content since our last read. */
-    if (text.length < transcriptPollLastLength) {
+    if (text.length < state.transcriptPollLastLength) {
         console.log("Transcript file appears re-created (shorter). Resetting.");
-        trace("POLL", "File re-created (shorter: " + text.length + " < " + transcriptPollLastLength + "), resetting");
-        transcriptPollLastLength = 0;
+        trace("POLL", "File re-created (shorter: " + text.length + " < " + state.transcriptPollLastLength + "), resetting");
+        state.transcriptPollLastLength = 0;
     }
-    if (text.length <= transcriptPollLastLength) return;
+    if (text.length <= state.transcriptPollLastLength) return;
 
-    const newText = text.slice(transcriptPollLastLength);
-    transcriptPollLastLength = text.length;
+    const newText = text.slice(state.transcriptPollLastLength);
+    state.transcriptPollLastLength = text.length;
     trace("POLL", "New data: " + newText.length + " bytes, preview: " + JSON.stringify(newText.substring(0, 80)));
 
     /* First data arrival: activate transcript mode */
-    if (!transcriptCapActive) {
-        transcriptCapActive = true;
+    if (!state.transcriptCapActive) {
+        state.transcriptCapActive = true;
         console.log("Transcript file detected — transcript capture active");
         trace("TRANSCRIPT", "First data arrival — transcript capture activated, " + text.length + " bytes on disk");
 
         /* If muting screen speech, kill any pending screen-change speech */
         if (transcriptMuteScreenToggle.checked) {
-            clearTimeout(changeSettleTimer);
-            pendingChanges = [];
-            awaitingResponse = false;
+            clearTimeout(state.changeSettleTimer);
+            state.pendingChanges = [];
+            state.awaitingResponse = false;
             window.speechSynthesis.cancel();
         }
 
@@ -96,7 +105,7 @@ function pollTranscriptFile() {
     resetTranscriptWatchdog();
 
     /* Parse new text into lines */
-    const prevLineCount = transcriptLines.length;
+    const prevLineCount = state.transcriptLines.length;
     let dirty = false;
 
     for (let i = 0; i < newText.length; i++) {
@@ -104,18 +113,18 @@ function pollTranscriptFile() {
         if (ch === "\r") continue;
 
         if (ch === "\n") {
-            transcriptLines.push(transcriptLineBuffer);
-            transcriptLineBuffer = "";
+            state.transcriptLines.push(state.transcriptLineBuffer);
+            state.transcriptLineBuffer = "";
             dirty = true;
             continue;
         }
 
-        transcriptLineBuffer += ch;
+        state.transcriptLineBuffer += ch;
 
         /* Word-wrap at column width */
-        if (transcriptLineBuffer.length >= COLS) {
-            transcriptLines.push(transcriptLineBuffer);
-            transcriptLineBuffer = "";
+        if (state.transcriptLineBuffer.length >= COLS) {
+            state.transcriptLines.push(state.transcriptLineBuffer);
+            state.transcriptLineBuffer = "";
             dirty = true;
         }
     }
@@ -126,10 +135,10 @@ function pollTranscriptFile() {
 
     /* Optionally render transcript lines to the screen DOM */
     if (transcriptReplaceScreenToggle.checked) {
-        const startIdx = Math.max(0, transcriptLines.length - ROWS);
-        const displayLines = transcriptLines.slice(startIdx);
-        if (transcriptLineBuffer.length > 0) {
-            displayLines.push(transcriptLineBuffer);
+        const startIdx = Math.max(0, state.transcriptLines.length - ROWS);
+        const displayLines = state.transcriptLines.slice(startIdx);
+        if (state.transcriptLineBuffer.length > 0) {
+            displayLines.push(state.transcriptLineBuffer);
         }
 
         for (let r = 0; r < ROWS; r++) {
@@ -139,12 +148,12 @@ function pollTranscriptFile() {
                 el.textContent = lineText || "\u00A0";
                 el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (lineText || "blank"));
             }
-            prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
+            state.prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
         }
     }
 
     /* Optionally speak the new lines */
-    const newLines = transcriptLines.slice(prevLineCount);
+    const newLines = state.transcriptLines.slice(prevLineCount);
 
     if (transcriptAutoSpeakToggle.checked) {
         const cleanText = newLines
@@ -163,16 +172,16 @@ function pollTranscriptFile() {
         const filtered = newLines.filter(l => l.trim());
         if (filtered.length > 0) {
             const entry = { type: "response", lines: filtered };
-            responseLog.push(entry);
-            responseNavIndex = responseLog.length - 1;
+            state.responseLog.push(entry);
+            state.responseNavIndex = state.responseLog.length - 1;
             updateHistNav();
             for (const line of filtered) addToHistory(line, false);
         }
     }
 
     /* Recording: capture transcript lines */
-    if (isRecording && newLines.length > 0) {
-        transcriptBuffer += newLines.join("\n") + "\n\n";
+    if (state.isRecording && newLines.length > 0) {
+        state.transcriptBuffer += newLines.join("\n") + "\n\n";
         updateTranscriptUI();
     }
 }
@@ -180,13 +189,13 @@ function pollTranscriptFile() {
 /**
  * Start polling the disk for the transcript file.
  */
-function startTranscriptPoll() {
-    if (transcriptPollTimer) return; /* already polling */
-    transcriptPollLastLength = 0;
-    transcriptLines = [];
-    transcriptLineBuffer = "";
+export function startTranscriptPoll() {
+    if (state.transcriptPollTimer) return; /* already polling */
+    state.transcriptPollLastLength = 0;
+    state.transcriptLines = [];
+    state.transcriptLineBuffer = "";
     const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
-    transcriptPollTimer = setInterval(pollTranscriptFile, ms);
+    state.transcriptPollTimer = setInterval(pollTranscriptFile, ms);
     updateTranscriptConnectionUI();
     const fname = transcriptWatchFilename.value || "SCRIPT.TXT";
     trace("TRANSCRIPT", "Started polling for " + fname + " every " + ms + "ms");
@@ -197,17 +206,17 @@ function startTranscriptPoll() {
 /**
  * Stop polling and deactivate transcript capture.
  */
-function stopTranscriptPoll() {
-    trace("TRANSCRIPT", "Stopping poll (had " + transcriptLines.length + " lines)");
-    if (transcriptPollTimer) {
-        clearInterval(transcriptPollTimer);
-        transcriptPollTimer = null;
+export function stopTranscriptPoll() {
+    trace("TRANSCRIPT", "Stopping poll (had " + state.transcriptLines.length + " lines)");
+    if (state.transcriptPollTimer) {
+        clearInterval(state.transcriptPollTimer);
+        state.transcriptPollTimer = null;
     }
-    transcriptCapActive = false;
-    clearTimeout(transcriptWatchdog);
-    transcriptWatchdog = null;
+    state.transcriptCapActive = false;
+    clearTimeout(state.transcriptWatchdog);
+    state.transcriptWatchdog = null;
     /* Reset prevLines so refreshScreen picks up current screen state */
-    prevLines = new Array(ROWS).fill("");
+    state.prevLines = new Array(ROWS).fill("");
     updateTranscriptConnectionUI();
     announce("Transcript watching stopped. Screen capture resumed.");
 }
@@ -215,20 +224,20 @@ function stopTranscriptPoll() {
 /**
  * Restart the poll timer at the new speed (called on dropdown change).
  */
-function restartTranscriptPoll() {
-    if (!transcriptPollTimer) return; /* not currently polling */
-    clearInterval(transcriptPollTimer);
-    transcriptPollLastLength = 0;
+export function restartTranscriptPoll() {
+    if (!state.transcriptPollTimer) return; /* not currently polling */
+    clearInterval(state.transcriptPollTimer);
+    state.transcriptPollLastLength = 0;
     const ms = parseInt(transcriptPollSpeedSelect.value, 10) || 2000;
-    transcriptPollTimer = setInterval(pollTranscriptFile, ms);
+    state.transcriptPollTimer = setInterval(pollTranscriptFile, ms);
 }
 
 /**
  * Force a transcript flush by sending "script off" to close the file,
  * then re-opening the transcript.
  */
-async function flushTranscriptFile() {
-    if (!emulator || !isReady) return;
+export async function flushTranscriptFile() {
+    if (!state.emulator || !state.isReady) return;
     const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
 
     announce("Flushing transcript...");
@@ -252,9 +261,9 @@ async function flushTranscriptFile() {
  * Read the transcript file from disk and return its text content.
  * Returns null if file not found or empty.
  */
-function readTranscriptFromDisk() {
-    if (!emulator || !isReady) {
-        trace("FAT", "readTranscriptFromDisk: skipped (emulator=" + !!emulator + " isReady=" + isReady + ")");
+export function readTranscriptFromDisk() {
+    if (!state.emulator || !state.isReady) {
+        trace("FAT", "readTranscriptFromDisk: skipped (emulator=" + !!state.emulator + " isReady=" + state.isReady + ")");
         return null;
     }
 
@@ -303,7 +312,7 @@ function readTranscriptFromDisk() {
 /**
  * Test Read button: read the transcript file from disk and announce its size.
  */
-function testReadTranscript() {
+export function testReadTranscript() {
     const text = readTranscriptFromDisk();
     if (text === null) {
         const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
@@ -326,7 +335,7 @@ function testReadTranscript() {
  * Speak Last button: read the transcript file from disk and speak
  * the last response.
  */
-function speakLastTranscript() {
+export function speakLastTranscript() {
     const text = readTranscriptFromDisk();
     if (text === null) {
         speak("No transcript file found on disk.");
@@ -371,18 +380,18 @@ function speakLastTranscript() {
 /**
  * Auto-flush cycle: triggered after each command when auto-flush is on.
  */
-async function autoFlushCycle() {
-    if (!emulator || !isReady || autoFlushPending) {
-        trace("FLUSH", "autoFlushCycle skipped: emulator=" + !!emulator + " isReady=" + isReady + " pending=" + autoFlushPending);
+export async function autoFlushCycle() {
+    if (!state.emulator || !state.isReady || state.autoFlushPending) {
+        trace("FLUSH", "autoFlushCycle skipped: emulator=" + !!state.emulator + " isReady=" + state.isReady + " pending=" + state.autoFlushPending);
         return;
     }
-    autoFlushPending = true;
+    state.autoFlushPending = true;
     trace("FLUSH", "Phase 1: sending 'script off'");
 
     /* Kill any pending/in-progress screen speech */
-    clearTimeout(changeSettleTimer);
-    pendingChanges = [];
-    awaitingResponse = false;
+    clearTimeout(state.changeSettleTimer);
+    state.pendingChanges = [];
+    state.awaitingResponse = false;
     window.speechSynthesis.cancel();
 
     const fname = (transcriptWatchFilename.value || "SCRIPT.TXT").trim();
@@ -402,30 +411,30 @@ async function autoFlushCycle() {
 
     if (text) {
         /* Update shared transcript state for read mode navigation */
-        transcriptLines = [];
-        transcriptLineBuffer = "";
+        state.transcriptLines = [];
+        state.transcriptLineBuffer = "";
         for (let i = 0; i < text.length; i++) {
             const ch = text[i];
             if (ch === "\r") continue;
             if (ch === "\n") {
-                transcriptLines.push(transcriptLineBuffer);
-                transcriptLineBuffer = "";
+                state.transcriptLines.push(state.transcriptLineBuffer);
+                state.transcriptLineBuffer = "";
                 continue;
             }
-            transcriptLineBuffer += ch;
-            if (transcriptLineBuffer.length >= COLS) {
-                transcriptLines.push(transcriptLineBuffer);
-                transcriptLineBuffer = "";
+            state.transcriptLineBuffer += ch;
+            if (state.transcriptLineBuffer.length >= COLS) {
+                state.transcriptLines.push(state.transcriptLineBuffer);
+                state.transcriptLineBuffer = "";
             }
         }
-        transcriptPollLastLength = text.length;
-        transcriptCapActive = true;
+        state.transcriptPollLastLength = text.length;
+        state.transcriptCapActive = true;
 
         /* Render last ROWS lines to DOM for read mode if checked */
         if (transcriptReplaceScreenToggle.checked) {
-            const startIdx = Math.max(0, transcriptLines.length - ROWS);
-            const displayLines = transcriptLines.slice(startIdx);
-            if (transcriptLineBuffer.length > 0) displayLines.push(transcriptLineBuffer);
+            const startIdx = Math.max(0, state.transcriptLines.length - ROWS);
+            const displayLines = state.transcriptLines.slice(startIdx);
+            if (state.transcriptLineBuffer.length > 0) displayLines.push(state.transcriptLineBuffer);
             for (let r = 0; r < ROWS; r++) {
                 const lineText = (r < displayLines.length) ? displayLines[r] : "";
                 const el = document.getElementById("screen-line-" + r);
@@ -433,7 +442,7 @@ async function autoFlushCycle() {
                     el.textContent = lineText || "\u00A0";
                     el.setAttribute("aria-label", "Line " + (r + 1) + ": " + (lineText || "blank"));
                 }
-                prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
+                state.prevLines[r] = lineText.padEnd(COLS).slice(0, COLS);
             }
         }
 
@@ -488,14 +497,14 @@ async function autoFlushCycle() {
             const filtered = responseLines.filter(l => l.trim());
             if (filtered.length > 0) {
                 const entry = { type: "response", lines: filtered.map(l => l.trim()) };
-                responseLog.push(entry);
-                responseNavIndex = responseLog.length - 1;
+                state.responseLog.push(entry);
+                state.responseNavIndex = state.responseLog.length - 1;
                 updateHistNav();
                 for (const line of filtered) addToHistory(line.trim(), false);
             }
 
-            if (isRecording) {
-                transcriptBuffer += responseLines.join("\n") + "\n\n";
+            if (state.isRecording) {
+                state.transcriptBuffer += responseLines.join("\n") + "\n\n";
                 updateTranscriptUI();
             }
         }
@@ -507,39 +516,39 @@ async function autoFlushCycle() {
     await new Promise(r => setTimeout(r, d2));
 
     /* Only clear pending screen changes, do NOT cancel speech */
-    clearTimeout(changeSettleTimer);
-    pendingChanges = [];
+    clearTimeout(state.changeSettleTimer);
+    state.pendingChanges = [];
 
     await typeToDOS(fname, true);
     await new Promise(r => setTimeout(r, d3));
 
-    clearTimeout(changeSettleTimer);
-    pendingChanges = [];
+    clearTimeout(state.changeSettleTimer);
+    state.pendingChanges = [];
 
-    autoFlushPending = false;
+    state.autoFlushPending = false;
     trace("FLUSH", "Auto-flush cycle complete");
 }
 
 /**
  * Schedule an auto-flush after the configured delay.
  */
-function scheduleAutoFlush() {
-    clearTimeout(autoFlushTimer);
+export function scheduleAutoFlush() {
+    clearTimeout(state.autoFlushTimer);
     const delay = parseInt(transcriptFlushDelay.value, 10) || 500;
-    autoFlushTimer = setTimeout(autoFlushCycle, delay);
+    state.autoFlushTimer = setTimeout(autoFlushCycle, delay);
 }
 
 /**
  * Update the transcript capture connection status UI.
  */
-function updateTranscriptConnectionUI() {
+export function updateTranscriptConnectionUI() {
     if (!transcriptCapState) return;
-    const isPolling = !!transcriptPollTimer;
+    const isPolling = !!state.transcriptPollTimer;
 
-    if (transcriptCapActive) {
+    if (state.transcriptCapActive) {
         transcriptCapState.textContent = "Connected";
         transcriptCapState.style.color = "var(--success, #2d8a4e)";
-        transcriptCapInfo.textContent = transcriptLines.length + " lines captured";
+        transcriptCapInfo.textContent = state.transcriptLines.length + " lines captured";
     } else if (isPolling) {
         transcriptCapState.textContent = "Watching";
         transcriptCapState.style.color = "var(--warning, #b58900)";
@@ -560,17 +569,17 @@ function updateTranscriptConnectionUI() {
 /**
  * Reset the transcript watchdog timer.
  */
-function resetTranscriptWatchdog() {
-    clearTimeout(transcriptWatchdog);
-    transcriptWatchdog = setTimeout(function() {
-        if (transcriptCapActive) {
+export function resetTranscriptWatchdog() {
+    clearTimeout(state.transcriptWatchdog);
+    state.transcriptWatchdog = setTimeout(function() {
+        if (state.transcriptCapActive) {
             console.warn("Transcript watchdog fired — no data for " +
                          (TRANSCRIPT_TIMEOUT_MS / 1000) + "s, falling back");
             trace("TRANSCRIPT", "Watchdog fired — no data for " + (TRANSCRIPT_TIMEOUT_MS / 1000) + "s, deactivating");
-            transcriptCapActive = false;
-            transcriptLines = [];
-            transcriptLineBuffer = "";
-            prevLines = new Array(ROWS).fill("");
+            state.transcriptCapActive = false;
+            state.transcriptLines = [];
+            state.transcriptLineBuffer = "";
+            state.prevLines = new Array(ROWS).fill("");
             updateTranscriptConnectionUI();
             announce("Transcript timed out. Still watching — will reconnect if new data appears.");
         }
@@ -581,14 +590,14 @@ function resetTranscriptWatchdog() {
  * Transcript Recording
  * ═══════════════════════════════════════════ */
 
-function toggleRecording() {
-    isRecording = !isRecording;
-    recordBtn.textContent = isRecording ? "Stop Recording" : "Start Recording";
-    recordBtn.className = isRecording ? "btn-danger btn-sm" : "btn-success btn-sm";
+export function toggleRecording() {
+    state.isRecording = !state.isRecording;
+    recordBtn.textContent = state.isRecording ? "Stop Recording" : "Start Recording";
+    recordBtn.className = state.isRecording ? "btn-danger btn-sm" : "btn-success btn-sm";
     /* Show/hide REC badge on the section summary */
     const summary = document.querySelector("#section-transcript > summary");
     const badge = summary.querySelector(".recording-badge");
-    if (isRecording) {
+    if (state.isRecording) {
         if (!badge) {
             const b = document.createElement("span");
             b.className = "recording-badge";
@@ -602,7 +611,7 @@ function toggleRecording() {
     }
 }
 
-function updateTranscriptUI() {
+export function updateTranscriptUI() {
     const combined = getCombinedTranscript();
     const hasData = combined.length > 0;
     downloadTranscriptBtn.style.display = hasData ? "" : "none";
@@ -622,24 +631,24 @@ function updateTranscriptUI() {
     }
 }
 
-function getCombinedTranscript() {
-    let result = transcriptBuffer;
-    if (serialBuffer.length > 0) {
+export function getCombinedTranscript() {
+    let result = state.transcriptBuffer;
+    if (state.serialBuffer.length > 0) {
         result += "\n--- Printer Output (captured from serial redirect) ---\n";
-        result += serialBuffer;
+        result += state.serialBuffer;
     }
     /* Include clean transcript from game's SCRIPT command if available */
-    if (transcriptLines.length > 0) {
+    if (state.transcriptLines.length > 0) {
         result += "\n--- Game Transcript (captured from file writes via TextCap) ---\n";
-        result += transcriptLines.join("\n");
-        if (transcriptLineBuffer.length > 0) {
-            result += "\n" + transcriptLineBuffer;
+        result += state.transcriptLines.join("\n");
+        if (state.transcriptLineBuffer.length > 0) {
+            result += "\n" + state.transcriptLineBuffer;
         }
     }
     return result;
 }
 
-function downloadTranscript() {
+export function downloadTranscript() {
     const text = getCombinedTranscript();
     if (!text) return;
     triggerDownload(
@@ -649,12 +658,12 @@ function downloadTranscript() {
     );
 }
 
-function clearTranscript() {
-    transcriptBuffer = "";
-    serialBuffer = "";
-    transcriptLines = [];
-    transcriptLineBuffer = "";
-    transcriptPollLastLength = 0;
+export function clearTranscript() {
+    state.transcriptBuffer = "";
+    state.serialBuffer = "";
+    state.transcriptLines = [];
+    state.transcriptLineBuffer = "";
+    state.transcriptPollLastLength = 0;
     updateTranscriptUI();
     speak("Transcript cleared.");
 }

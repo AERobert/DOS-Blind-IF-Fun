@@ -1,15 +1,15 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * Web Speech API
  * ═══════════════════════════════════════════ */
 
-function loadVoices() {
-    voices = speechSynthesis.getVoices();
-    if (!voices.length) return;
+import { state, voiceSelect, rateSlider, pitchSlider } from './state.js';
+
+export function loadVoices() {
+    state.voices = speechSynthesis.getVoices();
+    if (!state.voices.length) return;
     voiceSelect.innerHTML = "";
-    const english = voices.filter(v => v.lang.startsWith("en"));
-    const others = voices.filter(v => !v.lang.startsWith("en"));
+    const english = state.voices.filter(v => v.lang.startsWith("en"));
+    const others = state.voices.filter(v => !v.lang.startsWith("en"));
 
     function addGroup(label, list) {
         if (!list.length) return;
@@ -28,11 +28,11 @@ function loadVoices() {
 
     /* Restore saved voice or pick a sensible default */
     const saved = voiceSelect.dataset.savedVoice;
-    if (saved && voices.find(v => v.voiceURI === saved)) {
+    if (saved && state.voices.find(v => v.voiceURI === saved)) {
         voiceSelect.value = saved;
     } else {
         for (const name of ["Samantha","Alex","Daniel","Karen","Fiona"]) {
-            const m = voices.find(v => v.name.includes(name));
+            const m = state.voices.find(v => v.name.includes(name));
             if (m) { voiceSelect.value = m.voiceURI; break; }
         }
     }
@@ -41,9 +41,9 @@ function loadVoices() {
 speechSynthesis.addEventListener("voiceschanged", loadVoices);
 loadVoices();
 
-function getVoice() { return voices.find(v => v.voiceURI === voiceSelect.value) || null; }
+export function getVoice() { return state.voices.find(v => v.voiceURI === voiceSelect.value) || null; }
 
-function speak(text, interrupt) {
+export function speak(text, interrupt) {
     if (interrupt !== false) speechSynthesis.cancel();
     if (!text || !text.trim()) return;
     const u = new SpeechSynthesisUtterance(text);
@@ -54,4 +54,4 @@ function speak(text, interrupt) {
     speechSynthesis.speak(u);
 }
 
-function stopSpeech() { speechSynthesis.cancel(); }
+export function stopSpeech() { speechSynthesis.cancel(); }

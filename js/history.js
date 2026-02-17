@@ -1,10 +1,12 @@
-"use strict";
+import { state, historyLog, histPrevBtn, histNextBtn, histPosition } from './state.js';
+import { speak } from './speech.js';
+import { isPromptLine } from './screen.js';
 
 /* ═══════════════════════════════════════════
  * History Log & Navigation
  * ═══════════════════════════════════════════ */
 
-function addToHistory(text, isCmd) {
+export function addToHistory(text, isCmd) {
     if (historyLog.children.length === 1 &&
         historyLog.firstChild.textContent === "History appears here after the game starts.") {
         historyLog.innerHTML = "";
@@ -23,30 +25,30 @@ function addToHistory(text, isCmd) {
 }
 
 /** Navigate to a specific response in the responseLog */
-function navToResponse(index) {
-    if (index < 0 || index >= responseLog.length) return;
-    responseNavIndex = index;
+export function navToResponse(index) {
+    if (index < 0 || index >= state.responseLog.length) return;
+    state.responseNavIndex = index;
     updateHistNav();
 
-    const entry = responseLog[index];
+    const entry = state.responseLog[index];
     const text = entry.lines.join(". ");
     speak((entry.type === "command" ? "Command: " : "") + text);
 }
 
-function navPrevResponse() {
-    if (responseNavIndex > 0) navToResponse(responseNavIndex - 1);
+export function navPrevResponse() {
+    if (state.responseNavIndex > 0) navToResponse(state.responseNavIndex - 1);
     else speak("At the beginning of history.");
 }
 
-function navNextResponse() {
-    if (responseNavIndex < responseLog.length - 1) navToResponse(responseNavIndex + 1);
+export function navNextResponse() {
+    if (state.responseNavIndex < state.responseLog.length - 1) navToResponse(state.responseNavIndex + 1);
     else speak("At the end of history.");
 }
 
-function updateHistNav() {
-    histPosition.textContent = responseLog.length > 0
-        ? "Response " + (responseNavIndex + 1) + " of " + responseLog.length
+export function updateHistNav() {
+    histPosition.textContent = state.responseLog.length > 0
+        ? "Response " + (state.responseNavIndex + 1) + " of " + state.responseLog.length
         : "";
-    histPrevBtn.disabled = responseNavIndex <= 0;
-    histNextBtn.disabled = responseNavIndex >= responseLog.length - 1;
+    histPrevBtn.disabled = state.responseNavIndex <= 0;
+    histNextBtn.disabled = state.responseNavIndex >= state.responseLog.length - 1;
 }

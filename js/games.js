@@ -1,4 +1,8 @@
-"use strict";
+import { state, gameSelect, autorunInput, diskTypeSelect, customImgInput, loadCustomImgBtn } from './state.js';
+import { KNOWN_GAMES } from './game-configs.js';
+import { loadGameSettings } from './settings.js';
+import { setStatus } from './ui-helpers.js';
+import { GLOBAL_STORAGE_KEY } from './constants.js';
 
 /* ═══════════════════════════════════════════
  * Game Image Discovery & Presets
@@ -9,7 +13,7 @@
  * Uses HEAD requests so only a few bytes are exchanged per file.
  * Also adds any previously-remembered custom image filename.
  */
-async function populateGameSelect() {
+export async function populateGameSelect() {
     gameSelect.innerHTML = "";
     const found = [];
 
@@ -54,7 +58,7 @@ async function populateGameSelect() {
  * Loads saved per-game customizations, falling back to preset defaults
  * for any settings the user hasn't customized yet.
  */
-function applyGamePreset() {
+export function applyGamePreset() {
     const filename = gameSelect.value;
     const preset = KNOWN_GAMES[filename];
 
@@ -67,7 +71,7 @@ function applyGamePreset() {
     }
 
     /* Clear custom blob when switching to a known image */
-    customFloppyBlob = null;
+    state.customFloppyBlob = null;
 }
 
 /** Handle loading a custom .img file from the file picker */
@@ -75,7 +79,7 @@ function handleCustomImgUpload(file) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = function() {
-        customFloppyBlob = reader.result; /* ArrayBuffer */
+        state.customFloppyBlob = reader.result; /* ArrayBuffer */
         /* Add or update a "Custom" option in the game selector */
         let opt = gameSelect.querySelector('option[data-custom="1"]');
         if (!opt) {

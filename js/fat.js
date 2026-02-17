@@ -1,4 +1,4 @@
-"use strict";
+import { state, diskTypeSelect } from './state.js';
 
 /* ═══════════════════════════════════════════
  * Generic FAT File Manager (FAT12 + FAT16, floppy + HDD)
@@ -8,13 +8,13 @@
  * Read disk bytes from v86 for the active game disk.
  * Returns Uint8Array or null. Works for both floppy (fdb) and HDD (hda).
  */
-function getDiskBytes() {
-    if (!emulator) return null;
+export function getDiskBytes() {
+    if (!state.emulator) return null;
     try {
         const isHDD = diskTypeSelect.value === "hdd";
         if (isHDD) {
             /* IDE primary master = hda */
-            const dev = emulator.v86.cpu.devices.ide.primary.master;
+            const dev = state.emulator.v86.cpu.devices.ide.primary.master;
             if (!dev || !dev.buffer) return null;
             /* SyncBuffer.get_buffer() is synchronous despite callback API */
             let raw = null;
@@ -23,7 +23,7 @@ function getDiskBytes() {
             return new Uint8Array(raw);
         } else {
             /* Floppy B: drive */
-            const buf = emulator.get_disk_fdb();
+            const buf = state.emulator.get_disk_fdb();
             if (!buf) return null;
             if (buf instanceof Uint8Array) return buf;
             if (buf instanceof ArrayBuffer) return new Uint8Array(buf);
@@ -37,7 +37,7 @@ function getDiskBytes() {
 }
 
 /** Get a mutable copy of the disk image for writing. */
-function getDiskBytesCopy() {
+export function getDiskBytesCopy() {
     const orig = getDiskBytes();
     return orig ? new Uint8Array(orig) : null;
 }
@@ -46,15 +46,15 @@ function getDiskBytesCopy() {
  * Replace the game disk image with new data (for file uploads).
  * Supports both floppy (B:) and HDD (C:) images.
  */
-async function replaceDiskImage(data) {
-    if (!emulator) return false;
+export async function replaceDiskImage(data) {
+    if (!state.emulator) return false;
 
     const isHDD = diskTypeSelect.value === "hdd";
 
     try {
         if (isHDD) {
             /* IDE primary master = hda (C: drive) */
-            const dev = emulator.v86.cpu.devices.ide.primary.master;
+            const dev = state.emulator.v86.cpu.devices.ide.primary.master;
             if (!dev || !dev.buffer) return false;
 
             const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
@@ -76,7 +76,7 @@ async function replaceDiskImage(data) {
             return false;
         } else {
             /* Floppy B: drive */
-            const drive = emulator.v86.cpu.devices.fdc.drives[1];
+            const drive = state.emulator.v86.cpu.devices.fdc.drives[1];
             if (drive) {
                 const ab = data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength);
                 const oldBuf = drive.buffer;
@@ -102,7 +102,7 @@ async function replaceDiskImage(data) {
  * Parse the FAT filesystem geometry from a disk image.
  * Handles both raw floppies (BPB at byte 0) and MBR-partitioned HDDs.
  */
-function parseFATGeometry(img) {
+export function parseFATGeometry(img) {
     let partOffset = 0; /* byte offset to the partition/filesystem start */
 
     if (img.length > 512 && img[510] === 0x55 && img[511] === 0xAA) {
@@ -169,7 +169,7 @@ function parseFATGeometry(img) {
 /**
  * Parse directory entries from the root directory of a FAT12/16 image.
  */
-function parseFATDir(img, geo) {
+export function parseFATDir(img, geo) {
     if (!geo) return [];
     const files = [];
 
@@ -207,7 +207,7 @@ function parseFATDir(img, geo) {
  * Read a FAT entry for a given cluster number.
  * Supports both FAT12 (12-bit packed entries) and FAT16 (16-bit entries).
  */
-function readFATEntry(img, geo, cluster) {
+export function readFATEntry(img, geo, cluster) {
     if (geo.fatType === 12) {
         const byteOff = Math.floor(cluster * 3 / 2);
         const word = img[geo.fatStart + byteOff] | (img[geo.fatStart + byteOff + 1] << 8);
@@ -220,7 +220,7 @@ function readFATEntry(img, geo, cluster) {
 }
 
 /** Check if a FAT entry marks end-of-chain. */
-function isEOF(geo, val) {
+export function isEOF(geo, val) {
     return (geo.fatType === 12) ? (val >= 0xFF8) : (val >= 0xFFF8);
 }
 
@@ -228,7 +228,7 @@ function isEOF(geo, val) {
  * Read file data by following its cluster chain.
  * Returns Uint8Array of file contents.
  */
-function readFATFile(img, geo, file) {
+export function readFATFile(img, geo, file) {
     const data = new Uint8Array(file.size);
     let cluster = file.firstCluster;
     let written = 0;
@@ -271,7 +271,7 @@ function writeFATEntry(img, geo, cluster, val) {
  * Finds free clusters, writes data, creates/overwrites a directory entry.
  * Returns true on success.
  */
-function writeFATFile(img, geo, fileName, fileData) {
+export function writeFATFile(img, geo, fileName, fileData) {
     const eofMark = (geo.fatType === 12) ? 0xFFF : 0xFFFF;
 
     /* Parse 8.3 name */

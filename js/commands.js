@@ -1,4 +1,8 @@
-"use strict";
+import { state, transcriptAutoFlushToggle } from './state.js';
+import { CHAR_DELAY_MS, SCANCODES, MODIFIER_RELEASE } from './constants.js';
+import { trace } from './trace.js';
+import { addToHistory } from './history.js';
+import { scheduleAutoFlush } from './transcript.js';
 
 /* ═══════════════════════════════════════════
  * Commands
@@ -11,22 +15,22 @@
  * Before sending any characters, we release all modifier keys (Shift, Ctrl,
  * Alt) to clear any stuck state.
  */
-function typeToDOS(text, sendEnterAfter) {
+export function typeToDOS(text, sendEnterAfter) {
     return new Promise(resolve => {
-        if (!emulator) { resolve(); return; }
+        if (!state.emulator) { resolve(); return; }
         if (!text.length && !sendEnterAfter) { resolve(); return; }
 
         /* Release any stuck modifier keys before sending characters */
-        emulator.keyboard_send_scancodes(MODIFIER_RELEASE);
+        state.emulator.keyboard_send_scancodes(MODIFIER_RELEASE);
 
         for (let i = 0; i < text.length; i++) {
-            setTimeout(() => emulator.keyboard_send_text(text[i]), i * CHAR_DELAY_MS);
+            setTimeout(() => state.emulator.keyboard_send_text(text[i]), i * CHAR_DELAY_MS);
         }
 
         const afterChars = text.length * CHAR_DELAY_MS + 50;
         if (sendEnterAfter) {
             setTimeout(() => {
-                emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+                state.emulator.keyboard_send_scancodes(SCANCODES.ENTER);
                 setTimeout(resolve, 100);
             }, afterChars);
         } else {
@@ -39,29 +43,29 @@ function typeToDOS(text, sendEnterAfter) {
  * Send a command to DOS with proper character pacing.
  * Logs to history and responseLog.
  */
-function sendCommand(text) {
-    if (!emulator) return;
+export function sendCommand(text) {
+    if (!state.emulator) return;
     trace("CMD", "sendCommand: " + JSON.stringify(text));
-    awaitingResponse = true;
-    pendingChanges = [];
+    state.awaitingResponse = true;
+    state.pendingChanges = [];
 
     typeToDOS(text, true);
 
     if (text.trim()) {
-        commandHistory.push(text);
-        historyIndex = -1;
+        state.commandHistory.push(text);
+        state.historyIndex = -1;
         addToHistory(text, true);
-        responseLog.push({ type: "command", lines: [text] });
+        state.responseLog.push({ type: "command", lines: [text] });
 
         /* Auto-flush: after each command, schedule a flush cycle */
-        if (transcriptAutoFlushToggle.checked && !autoFlushPending) {
+        if (transcriptAutoFlushToggle.checked && !state.autoFlushPending) {
             scheduleAutoFlush();
         }
     }
 }
 
-function sendEnter() {
-    if (!emulator) return;
-    awaitingResponse = true; pendingChanges = [];
-    emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+export function sendEnter() {
+    if (!state.emulator) return;
+    state.awaitingResponse = true; state.pendingChanges = [];
+    state.emulator.keyboard_send_scancodes(SCANCODES.ENTER);
 }

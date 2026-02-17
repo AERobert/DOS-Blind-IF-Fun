@@ -1,4 +1,7 @@
-"use strict";
+import { state, gameSelect, storedFilesTable, storedFilesTbody, storedFilesStatus } from './state.js';
+import { KNOWN_GAMES } from './game-configs.js';
+import { formatSize } from './ui-helpers.js';
+import { announce } from './ui-helpers.js';
 
 /* ═══════════════════════════════════════════
  * IndexedDB Persistent File Storage
@@ -12,11 +15,11 @@ const FILE_DB_NAME = "dos-player-files";
 const FILE_DB_VERSION = 1;
 const FILE_STORE_NAME = "files";
 
-let fileDB = null;
+export let fileDB = null;
 
 /* ── Database operations ── */
 
-function openFileDB() {
+export function openFileDB() {
     return new Promise(function(resolve, reject) {
         if (!window.indexedDB) { reject(new Error("IndexedDB not supported")); return; }
         var req = indexedDB.open(FILE_DB_NAME, FILE_DB_VERSION);
@@ -42,7 +45,7 @@ function openFileDB() {
  * @param {ArrayBuffer|Uint8Array} data  File contents
  * @param {string} game     Game image filename (e.g. "tzero-data.img")
  */
-function saveFileToStorage(name, data, game) {
+export function saveFileToStorage(name, data, game) {
     return new Promise(function(resolve, reject) {
         if (!fileDB) { reject(new Error("DB not open")); return; }
         /* Normalize data to ArrayBuffer */
@@ -68,7 +71,7 @@ function saveFileToStorage(name, data, game) {
     });
 }
 
-function removeFileFromStorage(key) {
+export function removeFileFromStorage(key) {
     return new Promise(function(resolve, reject) {
         if (!fileDB) { reject(new Error("DB not open")); return; }
         var tx = fileDB.transaction(FILE_STORE_NAME, "readwrite");
@@ -79,7 +82,7 @@ function removeFileFromStorage(key) {
     });
 }
 
-function listStoredFiles() {
+export function listStoredFiles() {
     return new Promise(function(resolve, reject) {
         if (!fileDB) { reject(new Error("DB not open")); return; }
         var tx = fileDB.transaction(FILE_STORE_NAME, "readonly");
@@ -90,7 +93,7 @@ function listStoredFiles() {
     });
 }
 
-function getStoredFile(key) {
+export function getStoredFile(key) {
     return new Promise(function(resolve, reject) {
         if (!fileDB) { reject(new Error("DB not open")); return; }
         var tx = fileDB.transaction(FILE_STORE_NAME, "readonly");
@@ -107,7 +110,7 @@ function getStoredFile(key) {
  * Render the stored files table in the Setup section.
  * Files matching the currently selected game are checked by default.
  */
-async function renderStoredFilesTable() {
+export async function renderStoredFilesTable() {
     var tbody = storedFilesTbody;
     tbody.innerHTML = "";
 
@@ -189,7 +192,7 @@ async function renderStoredFilesTable() {
  * Get file data for all checked stored files (for injection at boot).
  * Returns array of { name: string, data: ArrayBuffer }.
  */
-async function getCheckedStoredFileData() {
+export async function getCheckedStoredFileData() {
     var result = [];
     var checkboxes = storedFilesTbody.querySelectorAll('input[type="checkbox"]:checked');
     for (var i = 0; i < checkboxes.length; i++) {

@@ -1,4 +1,17 @@
-"use strict";
+import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect } from './state.js';
+import { SCANCODES } from './constants.js';
+import { speakScreen, speakLast, speakNew } from './speech-actions.js';
+import { speak, stopSpeech } from './speech.js';
+import { setMode, handleReadKey } from './reading-mode.js';
+import { setStatus, announce, formatSize } from './ui-helpers.js';
+import { bootEmulator } from './emulator.js';
+import { sendCommand, sendEnter } from './commands.js';
+import { navPrevResponse, navNextResponse } from './history.js';
+import { refreshFileManager, uploadFiles, downloadFloppyImage } from './file-manager.js';
+import { saveState, restoreState } from './state-save.js';
+import { toggleRecording, downloadTranscript, clearTranscript, startTranscriptPoll, flushTranscriptFile, stopTranscriptPoll, restartTranscriptPoll, testReadTranscript, speakLastTranscript } from './transcript.js';
+import { toggleTrace, downloadTrace, clearTrace, toggleFSTracking, takeSnapshotNow, traceFSDiff } from './trace.js';
+import { saveFileToStorage, fileDB, renderStoredFilesTable } from './file-storage.js';
 
 /* ═══════════════════════════════════════════
  * Keyboard Shortcuts (F-keys)
@@ -19,12 +32,12 @@ document.addEventListener("keydown", function(e) {
     if (e.key === "F4") { e.preventDefault(); speakNew(); return; }
     if (e.key === "F5") { e.preventDefault(); stopSpeech(); return; }
     if (e.key === "F6") { e.preventDefault(); setMode("insert"); return; }
-    if (e.key === "F9") { e.preventDefault(); if (isReady) refreshFileManager(); return; }
-    if (e.key === "F10") { e.preventDefault(); if (isReady) saveState(); return; }
-    if (e.key === "F11") { e.preventDefault(); if (isReady) stateRestoreInput.click(); return; }
+    if (e.key === "F9") { e.preventDefault(); if (state.isReady) refreshFileManager(); return; }
+    if (e.key === "F10") { e.preventDefault(); if (state.isReady) saveState(); return; }
+    if (e.key === "F11") { e.preventDefault(); if (state.isReady) stateRestoreInput.click(); return; }
     if (e.key === "F12") {
         e.preventDefault();
-        if (transcriptPollTimer) {
+        if (state.transcriptPollTimer) {
             /* Already watching — flush and re-open the transcript */
             flushTranscriptFile();
         } else {
@@ -35,13 +48,13 @@ document.addEventListener("keydown", function(e) {
     }
 
     /* In INSERT mode, F7/F8 navigate response history (legacy behavior) */
-    if (keyMode === "insert") {
+    if (state.keyMode === "insert") {
         if (e.key === "F7") { e.preventDefault(); navPrevResponse(); return; }
         if (e.key === "F8") { e.preventDefault(); navNextResponse(); return; }
     }
 
     /* In READ mode, route all non-F-key presses through the read handler */
-    if (keyMode === "read") {
+    if (state.keyMode === "read") {
         const tag = e.target.tagName;
         /* Don't intercept typing in other inputs (filename field, etc.) */
         if (tag === "INPUT" || tag === "SELECT" || tag === "TEXTAREA") return;
@@ -68,10 +81,10 @@ commandInput.addEventListener("keydown", function(e) {
      */
     e.stopPropagation();
 
-    if (!isReady) return;
+    if (!state.isReady) return;
 
     /* If in read mode, don't process input keystrokes */
-    if (keyMode === "read") {
+    if (state.keyMode === "read") {
         e.preventDefault();
         return;
     }
@@ -91,35 +104,35 @@ commandInput.addEventListener("keydown", function(e) {
         if (e.key.startsWith("F") && e.key.length <= 3) return;
 
         if (e.key === "Enter") {
-            awaitingResponse = true; pendingChanges = [];
-            emulator.keyboard_send_scancodes(SCANCODES.ENTER);
+            state.awaitingResponse = true; state.pendingChanges = [];
+            state.emulator.keyboard_send_scancodes(SCANCODES.ENTER);
             return;
         }
         if (e.key === "Backspace") {
-            emulator.keyboard_send_scancodes([0x0E, 0x8E]);
+            state.emulator.keyboard_send_scancodes([0x0E, 0x8E]);
             return;
         }
         if (e.key === "ArrowUp") {
-            emulator.keyboard_send_scancodes([0x48, 0xC8]);
+            state.emulator.keyboard_send_scancodes([0x48, 0xC8]);
             speak("up"); return;
         }
         if (e.key === "ArrowDown") {
-            emulator.keyboard_send_scancodes([0x50, 0xD0]);
+            state.emulator.keyboard_send_scancodes([0x50, 0xD0]);
             speak("down"); return;
         }
         if (e.key === "ArrowLeft") {
-            emulator.keyboard_send_scancodes([0x4B, 0xCB]);
+            state.emulator.keyboard_send_scancodes([0x4B, 0xCB]);
             return;
         }
         if (e.key === "ArrowRight") {
-            emulator.keyboard_send_scancodes([0x4D, 0xCD]);
+            state.emulator.keyboard_send_scancodes([0x4D, 0xCD]);
             return;
         }
 
         /* Printable characters: send via keyboard_send_text */
         if (e.key.length === 1) {
-            awaitingResponse = true; pendingChanges = [];
-            emulator.keyboard_send_text(e.key);
+            state.awaitingResponse = true; state.pendingChanges = [];
+            state.emulator.keyboard_send_text(e.key);
             speak(e.key);
             return;
         }
@@ -136,9 +149,9 @@ commandInput.addEventListener("keydown", function(e) {
     /* Arrow Up: command history with speech */
     if (e.key === "ArrowUp") {
         e.preventDefault();
-        if (commandHistory.length) {
-            historyIndex = (historyIndex === -1) ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
-            this.value = commandHistory[historyIndex];
+        if (state.commandHistory.length) {
+            state.historyIndex = (state.historyIndex === -1) ? state.commandHistory.length - 1 : Math.max(0, state.historyIndex - 1);
+            this.value = state.commandHistory[state.historyIndex];
             speak(this.value);
         }
         return;
@@ -147,12 +160,12 @@ commandInput.addEventListener("keydown", function(e) {
     /* Arrow Down: command history with speech */
     if (e.key === "ArrowDown") {
         e.preventDefault();
-        if (historyIndex >= 0) {
-            historyIndex++;
-            if (historyIndex >= commandHistory.length) {
-                historyIndex = -1; this.value = ""; speak("empty");
+        if (state.historyIndex >= 0) {
+            state.historyIndex++;
+            if (state.historyIndex >= state.commandHistory.length) {
+                state.historyIndex = -1; this.value = ""; speak("empty");
             } else {
-                this.value = commandHistory[historyIndex]; speak(this.value);
+                this.value = state.commandHistory[state.historyIndex]; speak(this.value);
             }
         }
         return;
@@ -215,8 +228,8 @@ commandInput.addEventListener("keydown", function(e) {
 /* Also block keyup from input reaching v86 (prevents shift/modifier stuck state) */
 commandInput.addEventListener("keyup", function(e) { e.stopPropagation(); });
 
-sendBtn.addEventListener("click", () => { if (!isReady) return; sendCommand(commandInput.value); commandInput.value = ""; commandInput.focus(); });
-enterOnlyBtn.addEventListener("click", () => { if (!isReady || !emulator) return; sendEnter(); commandInput.focus(); });
+sendBtn.addEventListener("click", () => { if (!state.isReady) return; sendCommand(commandInput.value); commandInput.value = ""; commandInput.focus(); });
+enterOnlyBtn.addEventListener("click", () => { if (!state.isReady || !state.emulator) return; sendEnter(); commandInput.focus(); });
 
 speakScreenBtn.addEventListener("click", speakScreen);
 speakLastBtn.addEventListener("click", speakLast);
@@ -302,13 +315,13 @@ histCopyBtn.addEventListener("click", function() {
 
 function renderPreloadFilesList() {
     preloadFilesList.innerHTML = "";
-    if (preloadFiles.length === 0) {
+    if (state.preloadFiles.length === 0) {
         preloadFilesCount.textContent = "";
         return;
     }
-    preloadFilesCount.textContent = preloadFiles.length + " file(s) queued";
-    for (let i = 0; i < preloadFiles.length; i++) {
-        const pf = preloadFiles[i];
+    preloadFilesCount.textContent = state.preloadFiles.length + " file(s) queued";
+    for (let i = 0; i < state.preloadFiles.length; i++) {
+        const pf = state.preloadFiles[i];
         const item = document.createElement("div");
         item.className = "preload-file-item";
 
@@ -323,7 +336,7 @@ function renderPreloadFilesList() {
         item.appendChild(sizeSpan);
 
         /* Save to persistent storage */
-        if (typeof fileDB !== "undefined" && fileDB) {
+        if (fileDB) {
             const saveBtn = document.createElement("button");
             saveBtn.className = "save-btn";
             saveBtn.textContent = "Save";
@@ -333,7 +346,7 @@ function renderPreloadFilesList() {
                 return function() {
                     saveFileToStorage(file.name, file.data, gameSelect.value).then(function() {
                         announce("Saved " + file.name + " to storage.");
-                        if (typeof renderStoredFilesTable === "function") renderStoredFilesTable();
+                        renderStoredFilesTable();
                     }).catch(function() {
                         announce("Failed to save " + file.name + ".");
                     });
@@ -349,7 +362,7 @@ function renderPreloadFilesList() {
         removeBtn.setAttribute("aria-label", "Remove " + pf.name);
         removeBtn.addEventListener("click", (function(idx) {
             return function() {
-                preloadFiles.splice(idx, 1);
+                state.preloadFiles.splice(idx, 1);
                 renderPreloadFilesList();
             };
         })(i));
@@ -367,7 +380,7 @@ preloadFilesInput.addEventListener("change", function() {
         const reader = new FileReader();
         const name = f.name;
         reader.onload = function() {
-            preloadFiles.push({ name: name, data: reader.result });
+            state.preloadFiles.push({ name: name, data: reader.result });
             pending--;
             if (pending === 0) renderPreloadFilesList();
         };

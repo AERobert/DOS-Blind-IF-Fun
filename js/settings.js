@@ -1,4 +1,6 @@
-"use strict";
+import { state, voiceSelect, rateSlider, rateValue, pitchSlider, pitchValue, gameSelect, autorunInput, diskTypeSelect, autoSpeakToggle, speakAfterCmdToggle, skipDecorToggle, typingFeedbackSelect, promptCharInput, promptDepthSelect, singleKeyToggle } from './state.js';
+import { STORAGE_KEY, GLOBAL_STORAGE_KEY, GAME_STORAGE_PREFIX, GAME_SETTING_DEFAULTS, COLLAPSE_PREFIX } from './constants.js';
+import { KNOWN_GAMES } from './game-configs.js';
 
 /* ═══════════════════════════════════════════
  * localStorage: persist settings
@@ -50,7 +52,7 @@ function migrateSettings() {
 
 /* ── Global settings (voice / rate / pitch) ── */
 
-function saveGlobalSettings() {
+export function saveGlobalSettings() {
     try {
         const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
         const s = raw ? JSON.parse(raw) : {};
@@ -61,7 +63,7 @@ function saveGlobalSettings() {
     } catch(e) {}
 }
 
-function loadGlobalSettings() {
+export function loadGlobalSettings() {
     try {
         const raw = localStorage.getItem(GLOBAL_STORAGE_KEY);
         if (!raw) return;
@@ -75,7 +77,7 @@ function loadGlobalSettings() {
 
 /* ── Per-game settings ── */
 
-function saveGameSettings() {
+export function saveGameSettings() {
     const gameName = gameSelect.value;
     if (!gameName) return;
     try {
@@ -98,7 +100,7 @@ function saveGameSettings() {
  * Load game-specific settings for the currently selected game.
  * Merges preset defaults → saved overrides → applies to DOM.
  */
-function loadGameSettings() {
+export function loadGameSettings() {
     const gameName = gameSelect.value;
     if (!gameName) return;
 
@@ -139,12 +141,12 @@ function loadGameSettings() {
 
 /* ── Combined save/load (backward-compatible wrapper) ── */
 
-function saveSettings() {
+export function saveSettings() {
     saveGlobalSettings();
     saveGameSettings();
 }
 
-function loadSettings() {
+export function loadSettings() {
     migrateSettings();
     loadGlobalSettings();
     /* Game-specific settings are loaded by applyGamePreset()
@@ -173,7 +175,7 @@ autorunInput.addEventListener("change", saveGameSettings);
 
 /** Save open/closed state of collapsible panels to localStorage.
  *  Setup section is excluded — it always opens on page load and collapses on boot. */
-function saveCollapseStates() {
+export function saveCollapseStates() {
     document.querySelectorAll("details.cpanel[id]").forEach(d => {
         if (d.id === "section-setup") return;
         try { localStorage.setItem(COLLAPSE_PREFIX + d.id, d.open ? "1" : "0"); } catch(e) {}
@@ -182,7 +184,7 @@ function saveCollapseStates() {
 
 /** Restore collapse states from localStorage.
  *  Setup section is skipped — it stays open (as set in HTML). */
-function restoreCollapseStates() {
+export function restoreCollapseStates() {
     document.querySelectorAll("details.cpanel[id]").forEach(d => {
         if (d.id === "section-setup") return;
         try {

@@ -1,93 +1,63 @@
-"use strict";
+/* ═══════════════════════════════════════════
+ * Constants
+ * ═══════════════════════════════════════════ */
 
-/* ═══════ Constants ═══════ */
-const COLS = 80, ROWS = 25;
-const CP437 = [
-    " ","\u263a","\u263b","\u2665","\u2666","\u2663","\u2660","\u2022",
-    "\u25d8","\u25cb","\u25d9","\u2642","\u2640","\u266a","\u266b","\u263c",
-    "\u25ba","\u25c4","\u2195","\u203c","\u00b6","\u00a7","\u25ac","\u21a8",
-    "\u2191","\u2193","\u2192","\u2190","\u221f","\u2194","\u25b2","\u25bc",
+export const COLS = 80, ROWS = 25;
+export const CP437 = [
+    " ","\u263A","\u263B","\u2665","\u2666","\u2663","\u2660","\u2022",
+    "\u25D8","\u25CB","\u25D9","\u2642","\u2640","\u266A","\u266B","\u263C",
+    "\u25BA","\u25C4","\u2195","\u203C","\u00B6","\u00A7","\u25AC","\u21A8",
+    "\u2191","\u2193","\u2192","\u2190","\u221F","\u2194","\u25B2","\u25BC",
     " ","!","\"","#","$","%","&","'","(",")","*","+",",","-",".","/",
     "0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","?",
     "@","A","B","C","D","E","F","G","H","I","J","K","L","M","N","O",
     "P","Q","R","S","T","U","V","W","X","Y","Z","[","\\","]","^","_",
     "`","a","b","c","d","e","f","g","h","i","j","k","l","m","n","o",
     "p","q","r","s","t","u","v","w","x","y","z","{","|","}","~","\u2302",
-    "\u00c7","\u00fc","\u00e9","\u00e2","\u00e4","\u00e0","\u00e5","\u00e7",
-    "\u00ea","\u00eb","\u00e8","\u00ef","\u00ee","\u00ec","\u00c4","\u00c5",
-    "\u00c9","\u00e6","\u00c6","\u00f4","\u00f6","\u00f2","\u00fb","\u00f9",
-    "\u00ff","\u00d6","\u00dc","\u00a2","\u00a3","\u00a5","\u20a7","\u0192",
-    "\u00e1","\u00ed","\u00f3","\u00fa","\u00f1","\u00d1","\u00aa","\u00ba",
-    "\u00bf","\u2310","\u00ac","\u00bd","\u00bc","\u00a1","\u00ab","\u00bb",
+    "\u00C7","\u00FC","\u00E9","\u00E2","\u00E4","\u00E0","\u00E5","\u00E7",
+    "\u00EA","\u00EB","\u00E8","\u00EF","\u00EE","\u00EC","\u00C4","\u00C5",
+    "\u00C9","\u00E6","\u00C6","\u00F4","\u00F6","\u00F2","\u00FB","\u00F9",
+    "\u00FF","\u00D6","\u00DC","\u00A2","\u00A3","\u00A5","\u20A7","\u0192",
+    "\u00E1","\u00ED","\u00F3","\u00FA","\u00F1","\u00D1","\u00AA","\u00BA",
+    "\u00BF","\u2310","\u00AC","\u00BD","\u00BC","\u00A1","\u00AB","\u00BB",
     "\u2591","\u2592","\u2593","\u2502","\u2524","\u2561","\u2562","\u2556",
-    "\u2555","\u2563","\u2551","\u2557","\u255d","\u255c","\u255b","\u2510",
-    "\u2514","\u2534","\u252c","\u251c","\u2500","\u253c","\u255e","\u255f",
-    "\u255a","\u2554","\u2569","\u2566","\u2560","\u2550","\u256c","\u2567",
-    "\u2568","\u2564","\u2565","\u2559","\u2558","\u2552","\u2553","\u256b",
-    "\u256a","\u2518","\u250c","\u2588","\u2584","\u258c","\u2590","\u2580",
-    "\u03b1","\u00df","\u0393","\u03c0","\u03a3","\u03c3","\u00b5","\u03c4",
-    "\u03a6","\u0398","\u03a9","\u03b4","\u221e","\u03c6","\u03b5","\u2229",
-    "\u2261","\u00b1","\u2265","\u2264","\u2320","\u2321","\u00f7","\u2248",
-    "\u00b0","\u2219","\u00b7","\u221a","\u207f","\u00b2","\u25a0"," "
+    "\u2555","\u2563","\u2551","\u2557","\u255D","\u255C","\u255B","\u2510",
+    "\u2514","\u2534","\u252C","\u251C","\u2500","\u253C","\u255E","\u255F",
+    "\u255A","\u2554","\u2569","\u2566","\u2560","\u2550","\u256C","\u2567",
+    "\u2568","\u2564","\u2565","\u2559","\u2558","\u2552","\u2553","\u256B",
+    "\u256A","\u2518","\u250C","\u2588","\u2584","\u258C","\u2590","\u2580",
+    "\u03B1","\u00DF","\u0393","\u03C0","\u03A3","\u03C3","\u00B5","\u03C4",
+    "\u03A6","\u0398","\u03A9","\u03B4","\u221E","\u03C6","\u03B5","\u2229",
+    "\u2261","\u00B1","\u2265","\u2264","\u2320","\u2321","\u00F7","\u2248",
+    "\u00B0","\u2219","\u00B7","\u221A","\u207F","\u00B2","\u25A0"," "
 ];
 
-/* Box-drawing regex for filtering decorative lines from speech */
-const BOX_RE = /^[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580─│┐└┘├┤┬┴┼═║╔╗╚╝╠╣╦╩╬\-=+|_]+$/;
+export const CHAR_DELAY_MS = 30;
+export const FLOPPY_SIZE = 1474560;
+export const TRANSCRIPT_TIMEOUT_MS = 60000;
 
-const SCANCODES = { ENTER: [0x1C, 0x9C] };
-const FLOPPY_SIZE = 1474560; /* 1.44 MB */
+export const BOX_RE = /^[\u2500-\u257F\u2580-\u259F\s]+$/;
+export const BORDER_STRIP_RE = /^[\u2502\u2551\u2503\u2500\u2550\u250C\u2554\u2510\u2557\u2514\u255A\u2518\u255D\s]+/;
+export const BORDER_STRIP_END_RE = /[\u2502\u2551\u2503\u2500\u2550\u250C\u2554\u2510\u2557\u2514\u255A\u2518\u255D\s]+$/;
+
+export const SCANCODES = { ENTER: [0x1C, 0x9C] };
+export const MODIFIER_RELEASE = [0xAA, 0xB6, 0x9D, 0xB8];
 
 /* TextCap ANSI parser states */
-const TC_NORMAL = 0, TC_ESC = 1, TC_CSI = 2, TC_OSC = 3;
+export const TC_NORMAL = 0, TC_ESC = 1, TC_CSI = 2, TC_OSC = 3;
 
-const TRANSCRIPT_TIMEOUT_MS = 60000; /* fall back after 60s with no data */
+/* TextCap startup marker: ESC [ T C ] */
+export const TC_MARKER = [0x1B, 0x5B, 0x54, 0x43, 0x5D];
 
-const STORAGE_KEY = "tzero-player-settings"; /* legacy — migrated on first load */
-const GLOBAL_STORAGE_KEY = "dos-player-global";
-const GAME_STORAGE_PREFIX = "dos-player-game-";
-const COLLAPSE_PREFIX = "tzero_section_";
-
-/* Default game-specific settings (used when no saved per-game settings exist) */
-const GAME_SETTING_DEFAULTS = {
-    autoSpeak: false,
-    speakAfterCmd: true,
-    skipDecor: true,
-    typingFeedback: "characters",
-    promptChar: ">",
-    promptDepth: "last",
-    diskType: "floppy",
-    autorun: "",
-    singleKey: false
+/* Default per-game settings */
+export const GAME_SETTING_DEFAULTS = {
+    autoSpeak: false, speakAfterCmd: true, skipDecor: true,
+    typingFeedback: "characters", promptChar: ">", promptDepth: "last",
+    diskType: "floppy", autorun: "", singleKey: false
 };
 
-/* Typing delay between characters sent to DOS */
-const CHAR_DELAY_MS = 30;
-
-/* Break (release) scancodes for modifier keys */
-const MODIFIER_RELEASE = [
-    0xAA,   /* Left Shift break */
-    0xB6,   /* Right Shift break */
-    0x9D,   /* Left Ctrl break */
-    0xB8,   /* Left Alt break */
-];
-
-/* TextCap TSR startup marker: ESC [ T C ] */
-const TC_MARKER = [0x1B, 0x5B, 0x54, 0x43, 0x5D];
-
-/* Regex to strip box-drawing border chars from line edges */
-const BORDER_STRIP_RE = /^[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580│║─═]+/;
-
-/* Regex to strip border chars from the END of a line */
-const BORDER_STRIP_END_RE = /[\s\u2500-\u256c\u2502\u250c\u2510\u2514\u2518\u251c\u2524\u252c\u2534\u253c\u2550\u2551\u2554\u2557\u255a\u255d\u2560\u2563\u2566\u2569\u256c\u2591\u2592\u2593\u2588\u2584\u258c\u2590\u2580│║─═]+$/;
-
-/*
- * Known game presets: maps a disk image filename to default autorun
- * command and prompt character(s). Extend this list as you add games.
- * The player scans for each of these files via HEAD requests at startup.
- */
-const KNOWN_GAMES = {
-    "tzero-data.img":  { label: "T-Zero",        autorun: "T-ZERO.EXE",   prompt: "\u2666\u25ba", depth: "last",  disk: "floppy" },
-    "mindwheel.img":   { label: "Mindwheel",      autorun: "MNDWHEEL.BAT", prompt: ">",            depth: "below", disk: "floppy" },
-    "timequest.img":   { label: "Time Quest",     autorun: "TQ.EXE",       prompt: ">",            depth: "below", disk: "hdd", graphics: true, textcap: true },
-    "eamondx.img":     { label: "Eamon Deluxe",   autorun: "EAMONDX.BAT",  prompt: "?",            depth: "below", disk: "hdd", singleKey: true },
-};
+/* localStorage keys */
+export const STORAGE_KEY = "tzero-player-settings";
+export const GLOBAL_STORAGE_KEY = "dos-player-global";
+export const GAME_STORAGE_PREFIX = "dos-player-game-";
+export const COLLAPSE_PREFIX = "tzero_section_";

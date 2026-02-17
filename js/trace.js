@@ -1,5 +1,3 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * Emulator Debug Tracing
  * ═══════════════════════════════════════════
@@ -14,11 +12,17 @@
  * - Configurable verbosity via checkboxes
  */
 
+import { state, gameSelect, diskTypeSelect, traceFSTrackToggle,
+         traceToggleBtn, traceDownloadBtn, traceClearBtn, traceStatus } from './state.js';
+import { announce } from './ui-helpers.js';
+import { triggerDownload } from './ui-helpers.js';
+import { getDiskBytes, parseFATGeometry, parseFATDir, readFATEntry, isEOF } from './fat.js';
+
 /* ─── Filesystem snapshot state ─── */
-var fsSnapshot = null;          /* { files: [{name,size,cluster},...], timestamp } */
-var fsSnapshotTimer = null;     /* periodic auto-diff interval */
-var fsDiffCount = 0;            /* number of diffs performed */
-var lastFATGeometryStr = "";    /* dedup repeated FAT geometry logs */
+let fsSnapshot = null;          /* { files: [{name,size,cluster},...], timestamp } */
+let fsSnapshotTimer = null;     /* periodic auto-diff interval */
+let fsDiffCount = 0;            /* number of diffs performed */
+let lastFATGeometryStr = "";    /* dedup repeated FAT geometry logs */
 
 /* ─── Serial file-I/O marker detection ─── */
 /*
@@ -31,38 +35,38 @@ var lastFATGeometryStr = "";    /* dedup repeated FAT geometry logs */
  * These arrive via TextCap's INT 10h hook — the game writes status characters
  * to the screen and TextCap mirrors them to COM1 with STX/ETX framing.
  */
-var fileIOMarkerState = 0;      /* state machine position */
-var fileIOMarkerBuf = "";       /* accumulates detected marker chars */
-var fileIOMarkerTimer = null;   /* batch timer for reporting */
+let fileIOMarkerState = 0;      /* state machine position */
+let fileIOMarkerBuf = "";       /* accumulates detected marker chars */
+let fileIOMarkerTimer = null;   /* batch timer for reporting */
 
 /** Add a timestamped entry to the trace log */
-function trace(category, message) {
-    if (!traceEnabled) return;
-    var elapsed = ((Date.now() - traceStartTime) / 1000).toFixed(3);
-    traceLog.push("[" + elapsed + "s] [" + category + "] " + message);
+export function trace(category, message) {
+    if (!state.traceEnabled) return;
+    var elapsed = ((Date.now() - state.traceStartTime) / 1000).toFixed(3);
+    state.traceLog.push("[" + elapsed + "s] [" + category + "] " + message);
 }
 
 /** Start tracing */
-var traceUITimer = null;
-function startTrace() {
-    traceEnabled = true;
-    traceLog = [];
-    traceStartTime = Date.now();
+let traceUITimer = null;
+export function startTrace() {
+    state.traceEnabled = true;
+    state.traceLog = [];
+    state.traceStartTime = Date.now();
     lastFATGeometryStr = "";
     trace("TRACE", "Tracing started");
-    trace("STATE", "isReady=" + isReady +
-          " transcriptCapActive=" + transcriptCapActive +
-          " textCapActive=" + textCapActive +
-          " autoFlushPending=" + autoFlushPending +
-          " keyMode=" + keyMode);
-    if (emulator) {
+    trace("STATE", "isReady=" + state.isReady +
+          " transcriptCapActive=" + state.transcriptCapActive +
+          " textCapActive=" + state.textCapActive +
+          " autoFlushPending=" + state.autoFlushPending +
+          " keyMode=" + state.keyMode);
+    if (state.emulator) {
         trace("STATE", "Emulator running, game=" + (gameSelect.value || "(custom)") +
               " diskType=" + diskTypeSelect.value);
     } else {
         trace("STATE", "Emulator not started");
     }
     /* Log current filesystem state on trace start */
-    if (emulator && isReady) {
+    if (state.emulator && state.isReady) {
         traceCurrentFilesystem();
     }
     updateTraceUI();
@@ -76,9 +80,9 @@ function startTrace() {
 }
 
 /** Stop tracing */
-function stopTrace() {
-    trace("TRACE", "Tracing stopped (" + traceLog.length + " entries)");
-    traceEnabled = false;
+export function stopTrace() {
+    trace("TRACE", "Tracing stopped (" + state.traceLog.length + " entries)");
+    state.traceEnabled = false;
     clearInterval(traceUITimer);
     traceUITimer = null;
     stopFSAutoTracking();
@@ -86,8 +90,8 @@ function stopTrace() {
 }
 
 /** Toggle tracing on/off */
-function toggleTrace() {
-    if (traceEnabled) {
+export function toggleTrace() {
+    if (state.traceEnabled) {
         stopTrace();
     } else {
         startTrace();
@@ -95,8 +99,8 @@ function toggleTrace() {
 }
 
 /** Download the trace log as a text file */
-function downloadTrace() {
-    if (traceLog.length === 0) {
+export function downloadTrace() {
+    if (state.traceLog.length === 0) {
         announce("No trace data to download.");
         return;
     }
@@ -105,7 +109,7 @@ function downloadTrace() {
         "═══════════════════════════════════════════",
         " DOS Adventure Player — Debug Trace",
         " Generated: " + new Date().toISOString(),
-        " Entries: " + traceLog.length,
+        " Entries: " + state.traceLog.length,
         " Game: " + (gameSelect.value || "(custom)"),
         " Disk Type: " + diskTypeSelect.value,
         " FS Tracking: " + (traceFSTrackToggle ? traceFSTrackToggle.checked : "n/a"),
@@ -115,21 +119,21 @@ function downloadTrace() {
         ""
     ].join("\n");
 
-    var text = header + traceLog.join("\n") + "\n";
+    var text = header + state.traceLog.join("\n") + "\n";
     triggerDownload(
         new Uint8Array(new TextEncoder().encode(text)),
         "emulator-trace-" + Date.now() + ".txt",
         "text/plain"
     );
-    announce("Trace downloaded. " + traceLog.length + " entries.");
+    announce("Trace downloaded. " + state.traceLog.length + " entries.");
 }
 
 /** Clear the trace log */
-function clearTrace() {
-    traceLog = [];
+export function clearTrace() {
+    state.traceLog = [];
     lastFATGeometryStr = "";
-    if (traceEnabled) {
-        traceStartTime = Date.now();
+    if (state.traceEnabled) {
+        state.traceStartTime = Date.now();
         trace("TRACE", "Trace cleared and restarted");
     }
     updateTraceUI();
@@ -137,20 +141,20 @@ function clearTrace() {
 }
 
 /** Update the trace UI status text */
-function updateTraceUI() {
+export function updateTraceUI() {
     if (!traceToggleBtn) return;
 
-    if (traceEnabled) {
+    if (state.traceEnabled) {
         traceToggleBtn.textContent = "Stop Tracing";
         traceToggleBtn.className = "btn-danger btn-sm";
-        traceStatus.textContent = "Tracing active — " + traceLog.length + " entries" +
+        traceStatus.textContent = "Tracing active — " + state.traceLog.length + " entries" +
             (fsSnapshot ? " | FS tracked (" + fsDiffCount + " diffs)" : "");
         traceStatus.style.color = "var(--error)";
     } else {
         traceToggleBtn.textContent = "Start Tracing";
         traceToggleBtn.className = "btn-secondary btn-sm";
-        if (traceLog.length > 0) {
-            traceStatus.textContent = traceLog.length + " entries captured (stopped)";
+        if (state.traceLog.length > 0) {
+            traceStatus.textContent = state.traceLog.length + " entries captured (stopped)";
             traceStatus.style.color = "var(--text-secondary)";
         } else {
             traceStatus.textContent = "Idle";
@@ -158,8 +162,8 @@ function updateTraceUI() {
         }
     }
 
-    traceDownloadBtn.style.display = traceLog.length > 0 ? "" : "none";
-    traceClearBtn.style.display = traceLog.length > 0 ? "" : "none";
+    traceDownloadBtn.style.display = state.traceLog.length > 0 ? "" : "none";
+    traceClearBtn.style.display = state.traceLog.length > 0 ? "" : "none";
 }
 
 /* ═══════════════════════════════════════════
@@ -171,8 +175,8 @@ function updateTraceUI() {
  */
 
 /** Log FAT geometry only if it changed since last log */
-function traceFATGeometry(geo) {
-    if (!traceEnabled || !geo) return;
+export function traceFATGeometry(geo) {
+    if (!state.traceEnabled || !geo) return;
     var key = "FAT" + geo.fatType + " spc=" + geo.sectorsPerCluster +
               " bpc=" + geo.bytesPerCluster + " data=0x" + geo.dataStart.toString(16);
     if (key !== lastFATGeometryStr) {
@@ -194,7 +198,7 @@ function traceFATGeometry(geo) {
  *   2 = got operation char (waiting for ETX)
  */
 
-function checkFileIOMarker(byte) {
+export function checkFileIOMarker(byte) {
     switch (fileIOMarkerState) {
         case 0: /* idle */
             if (byte === 0x02) {
@@ -271,10 +275,10 @@ function flushFileIOMarkers() {
  * - "Ok." / "[Ok]" — command acknowledged
  */
 
-var textPatternBuf = "";        /* accumulates recent printable chars */
-var textPatternTimer = null;
+let textPatternBuf = "";        /* accumulates recent printable chars */
+let textPatternTimer = null;
 
-var TEXT_PATTERNS = [
+let TEXT_PATTERNS = [
     { pattern: "transcript off",  label: "TRANSCRIPT_CLOSE", ci: true },
     { pattern: "script off",      label: "TRANSCRIPT_CLOSE", ci: true },
     { pattern: "saving",          label: "GAME_SAVE",        ci: true },
@@ -283,8 +287,8 @@ var TEXT_PATTERNS = [
 ];
 
 /** Feed printable text into the pattern detector */
-function traceTextPattern(text) {
-    if (!traceEnabled) return;
+export function traceTextPattern(text) {
+    if (!state.traceEnabled) return;
     textPatternBuf += text;
     /* Keep buffer from growing unbounded — only need last ~200 chars */
     if (textPatternBuf.length > 200) {
@@ -336,8 +340,8 @@ function checkTextPatterns() {
  */
 
 /** Take a filesystem snapshot and return it */
-function takeFilesystemSnapshot() {
-    if (!emulator || !isReady) return null;
+export function takeFilesystemSnapshot() {
+    if (!state.emulator || !state.isReady) return null;
 
     var img = getDiskBytes();
     if (!img) return null;
@@ -396,7 +400,7 @@ function takeFilesystemSnapshot() {
 }
 
 /** Log the current filesystem to the trace */
-function traceCurrentFilesystem() {
+export function traceCurrentFilesystem() {
     var snap = takeFilesystemSnapshot();
     if (!snap) {
         trace("FS", "Could not read filesystem");
@@ -416,12 +420,12 @@ function traceCurrentFilesystem() {
 }
 
 /** Take a new snapshot and use it as the baseline */
-function takeSnapshotNow() {
+export function takeSnapshotNow() {
     fsSnapshot = takeFilesystemSnapshot();
     fsDiffCount = 0;
     if (fsSnapshot) {
         trace("FS_SNAP", "Baseline snapshot taken: " + fsSnapshot.files.length + " files");
-        if (traceEnabled) {
+        if (state.traceEnabled) {
             for (var i = 0; i < fsSnapshot.files.length; i++) {
                 var f = fsSnapshot.files[i];
                 trace("FS_SNAP", "  " + f.name.padEnd(13) +
@@ -437,7 +441,7 @@ function takeSnapshotNow() {
 }
 
 /** Compare current filesystem against the last snapshot, log differences */
-function traceFSDiff(reason) {
+export function traceFSDiff(reason) {
     if (!fsSnapshot) {
         trace("FS_DIFF", "No baseline snapshot — take a snapshot first");
         return;
@@ -518,14 +522,14 @@ function traceFSDiff(reason) {
 }
 
 /** Start periodic filesystem auto-tracking */
-function startFSAutoTracking() {
+export function startFSAutoTracking() {
     if (fsSnapshotTimer) return;
     if (!fsSnapshot) {
         takeSnapshotNow();
     }
     /* Auto-diff every 5 seconds */
     fsSnapshotTimer = setInterval(function() {
-        if (traceEnabled) {
+        if (state.traceEnabled) {
             traceFSDiff("periodic auto-check");
         }
     }, 5000);
@@ -533,7 +537,7 @@ function startFSAutoTracking() {
 }
 
 /** Stop periodic filesystem auto-tracking */
-function stopFSAutoTracking() {
+export function stopFSAutoTracking() {
     if (fsSnapshotTimer) {
         clearInterval(fsSnapshotTimer);
         fsSnapshotTimer = null;
@@ -541,10 +545,10 @@ function stopFSAutoTracking() {
 }
 
 /** Toggle filesystem tracking */
-function toggleFSTracking() {
+export function toggleFSTracking() {
     if (!traceFSTrackToggle) return;
     if (traceFSTrackToggle.checked) {
-        if (traceEnabled) {
+        if (state.traceEnabled) {
             startFSAutoTracking();
         }
         announce("Filesystem change tracking enabled. Changes will be logged.");
