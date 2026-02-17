@@ -21,8 +21,9 @@ import tzero from './games/tzero.js';
 import mindwheel from './games/mindwheel.js';
 import timequest from './games/timequest.js';
 import eamondx from './games/eamondx.js';
+import humbug from './games/humbug.js';
 
-const gameList = [tzero, mindwheel, timequest, eamondx];
+const gameList = [tzero, mindwheel, timequest, eamondx, humbug];
 
 export const KNOWN_GAMES = {};
 for (const game of gameList) {
