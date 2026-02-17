@@ -78,6 +78,9 @@ export function bootEmulator(autoLaunch) {
     state.emulator.add_listener("serial0-output-byte", function(byte) {
         /* Feed device capture (captures ALL serial bytes before any filtering) */
         feedCom1Byte(byte);
+        /* Feed LPT1/PRN capture too — must be before TextCap early-return so it
+         * works in graphics mode. feedLpt1Byte has its own ANSI stripping. */
+        feedLpt1Byte(byte);
 
         /* Batch serial bytes into short trace lines to avoid per-byte spam */
         if (state.traceEnabled) {
@@ -120,7 +123,6 @@ export function bootEmulator(autoLaunch) {
         }
 
         /* Original serial capture for printer redirect (no TextCap) */
-        feedLpt1Byte(byte);
         if (byte === 13) return;
         if (byte === 10) { state.serialBuffer += "\n"; return; }
         if (byte >= 32 && byte < 127) state.serialBuffer += String.fromCharCode(byte);

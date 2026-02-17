@@ -271,15 +271,19 @@
                 <button id="dev-com1-download" class="btn-secondary btn-sm" disabled>Download</button>
                 <button id="dev-com1-clear" class="btn-secondary btn-sm" disabled>Clear</button>
             </div>
-            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.5rem;">
+            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
                 <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
-                    <input type="checkbox" id="dev-com1-raw-toggle"> Include hex for non-printable bytes
+                    <input type="checkbox" id="dev-com1-raw-toggle"> Include hex for control bytes
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com1-strip-ansi" checked> Strip ANSI escape codes
                 </label>
             </div>
             <pre id="dev-com1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
             <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
-                Captures all serial port output (v86 serial0). If a game writes to COM1 or AUX,
-                data appears here in real-time. Includes LPT1 redirect data if MODE LPT1:=COM1: is active.
+                Captures all serial port output (v86 serial0). When TextCap TSR is active,
+                raw output includes ANSI cursor/clear codes; use "Strip ANSI" for clean text.
+                PRN/LPT1 below auto-strips ANSI and shows only readable text.
             </p>
         </div>
 
@@ -295,9 +299,9 @@
             </div>
             <pre id="dev-lpt1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
             <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
-                Printer output captured via <code>MODE LPT1:=COM1:</code> redirect (sent at boot).
-                Shows only printable text (filtered from serial stream). v86 does not expose
-                the parallel port directly, so this relies on the DOS redirect.
+                Clean text view of the serial stream with ANSI escape codes automatically stripped.
+                When TextCap is active (graphics mode games), this gives readable text without
+                the cursor positioning clutter. Same data source as COM1, different filtering.
             </p>
         </div>
 

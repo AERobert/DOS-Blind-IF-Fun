@@ -22,7 +22,7 @@ import { state,
          devConToggle, devConStatus, devConDownloadBtn, devConClearBtn,
          devCom1Toggle, devCom1Status, devCom1DownloadBtn, devCom1ClearBtn,
          devLpt1Toggle, devLpt1Status, devLpt1DownloadBtn, devLpt1ClearBtn,
-         devDownloadAllBtn, devClearAllBtn, devCom1RawToggle,
+         devDownloadAllBtn, devClearAllBtn, devCom1RawToggle, devCom1StripAnsiToggle,
          devConPreview, devCom1Preview, devLpt1Preview } from './state.js';
 import { ROWS, COLS } from './constants.js';
 import { triggerDownload, announce } from './ui-helpers.js';
@@ -103,14 +103,50 @@ function conSnapshotPoll() {
 /* ─── COM1 (Serial Port) capture ─── */
 
 /**
+ * ANSI stripping state machine for COM1 capture.
+ * Same logic as the LPT1 stripper but independent state.
+ * States: 0=normal, 1=got ESC, 2=in CSI sequence
+ */
+let com1AnsiState = 0;
+
+/**
  * Called from emulator.js for every serial0-output-byte.
  * This captures ALL serial bytes regardless of TextCap or other processing.
+ * If "Strip ANSI" is checked, ANSI escape sequences are filtered out.
  */
 export function feedCom1Byte(byte) {
     if (!state.deviceCapture.com1.enabled) return;
 
     state.deviceCapture.com1.bytes++;
     state.deviceCapture.com1.rawBytes.push(byte);
+
+    var stripAnsi = devCom1StripAnsiToggle && devCom1StripAnsiToggle.checked;
+
+    /* If stripping ANSI, use the state machine to skip escape sequences */
+    if (stripAnsi) {
+        switch (com1AnsiState) {
+            case 0: /* normal */
+                if (byte === 0x1B) {
+                    com1AnsiState = 1;
+                    return;
+                }
+                break; /* fall through to normal text handling */
+            case 1: /* got ESC */
+                if (byte === 0x5B) {
+                    com1AnsiState = 2; /* CSI */
+                } else if (byte >= 0x40 && byte <= 0x5F) {
+                    com1AnsiState = 0; /* Fe escape, done */
+                } else {
+                    com1AnsiState = 0; /* unknown, back to normal */
+                }
+                return;
+            case 2: /* in CSI */
+                if (byte >= 0x40 && byte <= 0x7E) {
+                    com1AnsiState = 0; /* final byte, done */
+                }
+                return;
+        }
+    }
 
     /* Text representation */
     if (byte === 0x0D) {
@@ -132,22 +168,82 @@ export function feedCom1Byte(byte) {
 }
 
 /**
- * Called from emulator.js for serial bytes that are "printer redirect" data.
- * These are the filtered printable bytes from the LPT1→COM1 redirect.
+ * Called from emulator.js for ALL serial bytes (before TextCap processing).
+ * Strips ANSI escape sequences to produce clean readable text.
+ *
+ * When TextCap is active, the serial stream is full of ANSI cursor
+ * positioning (ESC[row;colH) and line clearing (ESC[K) codes.
+ * This state machine strips them out, keeping only printable text.
+ *
+ * ANSI escape sequence format:
+ *   ESC (0x1B) followed by:
+ *   - '[' + parameters + final byte (0x40-0x7E)  = CSI sequence
+ *   - single byte (0x40-0x5F)                     = Fe escape
+ *   - ']' + ... + BEL/ST                          = OSC (rare)
+ *
+ * State machine:
+ *   0 = normal (pass through printable bytes)
+ *   1 = got ESC, waiting for next byte
+ *   2 = in CSI sequence (ESC[...), waiting for final byte
  */
+let lpt1AnsiState = 0;
+
 export function feedLpt1Byte(byte) {
     if (!state.deviceCapture.lpt1.enabled) return;
 
-    if (byte === 0x0D) return;
-    if (byte === 0x0A) {
-        state.deviceCapture.lpt1.buffer += "\n";
-        state.deviceCapture.lpt1.bytes++;
-        return;
+    switch (lpt1AnsiState) {
+        case 0: /* normal */
+            if (byte === 0x1B) {
+                /* Start of escape sequence — enter escape state */
+                lpt1AnsiState = 1;
+                return;
+            }
+            /* Pass through printable text */
+            if (byte === 0x0D) return; /* CR — skip */
+            if (byte === 0x0A) {
+                state.deviceCapture.lpt1.buffer += "\n";
+                state.deviceCapture.lpt1.bytes++;
+                return;
+            }
+            if (byte >= 0x20 && byte < 0x7F) {
+                state.deviceCapture.lpt1.buffer += String.fromCharCode(byte);
+                state.deviceCapture.lpt1.bytes++;
+            }
+            /* Skip other control bytes (STX, ETX, BEL, etc.) */
+            return;
+
+        case 1: /* got ESC */
+            if (byte === 0x5B) {
+                /* ESC[ = CSI — enter CSI sequence state */
+                lpt1AnsiState = 2;
+            } else if (byte >= 0x40 && byte <= 0x5F) {
+                /* Fe escape (ESC + single byte like ESC D, ESC M) — done */
+                lpt1AnsiState = 0;
+            } else if (byte === 0x5D) {
+                /* ESC] = OSC — skip until BEL (0x07) or ST (ESC\) */
+                /* For simplicity, just go back to normal and let it filter */
+                lpt1AnsiState = 0;
+            } else {
+                /* Unknown escape — go back to normal */
+                lpt1AnsiState = 0;
+            }
+            return;
+
+        case 2: /* in CSI sequence (ESC[...) */
+            /* CSI parameters are 0x30-0x3F, intermediates are 0x20-0x2F,
+             * final byte is 0x40-0x7E. Stay in state 2 until final byte. */
+            if (byte >= 0x40 && byte <= 0x7E) {
+                /* Final byte — sequence complete, back to normal */
+                lpt1AnsiState = 0;
+            }
+            /* Otherwise stay in CSI state (parameter/intermediate bytes) */
+            return;
     }
-    if (byte >= 0x20 && byte < 0x7F) {
-        state.deviceCapture.lpt1.buffer += String.fromCharCode(byte);
-        state.deviceCapture.lpt1.bytes++;
-    }
+}
+
+/** Reset the LPT1 ANSI parser state (call when clearing capture) */
+function resetLpt1AnsiState() {
+    lpt1AnsiState = 0;
 }
 
 /* ─── UI update ─── */
@@ -350,12 +446,14 @@ export function clearCom1Capture() {
     state.deviceCapture.com1.buffer = "";
     state.deviceCapture.com1.bytes = 0;
     state.deviceCapture.com1.rawBytes = [];
+    com1AnsiState = 0;
     updateDeviceUI();
 }
 
 export function clearLpt1Capture() {
     state.deviceCapture.lpt1.buffer = "";
     state.deviceCapture.lpt1.bytes = 0;
+    resetLpt1AnsiState();
     updateDeviceUI();
 }
 

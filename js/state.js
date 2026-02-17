@@ -144,6 +144,7 @@ export const devLpt1ClearBtn = $("dev-lpt1-clear");
 export const devDownloadAllBtn = $("dev-download-all");
 export const devClearAllBtn = $("dev-clear-all");
 export const devCom1RawToggle = $("dev-com1-raw-toggle");
+export const devCom1StripAnsiToggle = $("dev-com1-strip-ansi");
 export const devConPreview = $("dev-con-preview");
 export const devCom1Preview = $("dev-com1-preview");
 export const devLpt1Preview = $("dev-lpt1-preview");
