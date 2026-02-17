@@ -16,6 +16,7 @@ import { initTextCapBuffer, textCapParseByte, renderTextCapScreen, checkTextCapM
 import { saveGameSettings } from './settings.js';
 import { getCheckedStoredFileData } from './file-storage.js';
 import { feedCom1Byte, feedLpt1Byte, feedCom2Byte } from './devices.js';
+import { initOPLAudio } from './audio.js';
 
 export function bootEmulator(autoLaunch) {
     const Ctor = window.V86Starter || window.V86;
@@ -67,6 +68,13 @@ export function bootEmulator(autoLaunch) {
         bootBtn.disabled = false; bootPromptBtn.disabled = false;
         return;
     }
+
+    /* Initialize OPL3 FM synthesis audio bridge.
+     * This hooks into v86's SB16 FM register writes and produces
+     * real FM audio output via Web Audio API. Audio context is
+     * created lazily on first actual FM write from a game. */
+    initOPLAudio(state.emulator);
+
     setStatus("loading", "Booting FreeDOS... please wait (15-30 sec).");
 
     state.emulator.add_listener("screen-put-char", function(d) {

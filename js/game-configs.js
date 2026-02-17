@@ -15,6 +15,7 @@
  *   graphics  - (optional) true if game uses graphics mode
  *   textcap   - (optional) true to load TEXTCAP.COM TSR
  *   singleKey - (optional) true for menu-driven single-keypress games
+ *   audio     - (optional) "sb16" for Sound Blaster / Adlib FM music
  */
 
 import tzero from './games/tzero.js';
