@@ -31,6 +31,19 @@ export const state = {
     responseLog: [], responseNavIndex: -1,
     voices: [],
     traceEnabled: false, traceLog: [], traceStartTime: 0,
+    /* Device capture buffers */
+    deviceCapture: {
+        con:  { enabled: false, buffer: "", bytes: 0 },
+        com1: { enabled: false, buffer: "", bytes: 0, rawBytes: [] },
+        com2: { enabled: false, buffer: "", bytes: 0 },
+        lpt1: { enabled: false, buffer: "", bytes: 0 },
+    },
+    deviceConPrevLines: [],  /* previous screen snapshot for CON diff */
+    /* COM2 auto-speak state */
+    com2LineBuffer: "",          /* current incomplete line being accumulated */
+    com2SpeechPending: [],       /* complete lines waiting to be spoken */
+    com2SpeechTimer: null,       /* debounce timer for batching lines */
+    com2MuteScreen: false,       /* cached flag: suppress screen speech */
 };
 
 /* ── DOM Element References ── */
@@ -120,3 +133,34 @@ export const preloadFilesCount = $("preload-files-count");
 export const storedFilesTable = $("stored-files-table");
 export const storedFilesTbody = $("stored-files-tbody");
 export const storedFilesStatus = $("stored-files-status");
+
+/* Device Monitor DOM references */
+export const devConToggle = $("dev-con-toggle");
+export const devConStatus = $("dev-con-status");
+export const devConDownloadBtn = $("dev-con-download");
+export const devConClearBtn = $("dev-con-clear");
+export const devCom1Toggle = $("dev-com1-toggle");
+export const devCom1Status = $("dev-com1-status");
+export const devCom1DownloadBtn = $("dev-com1-download");
+export const devCom1ClearBtn = $("dev-com1-clear");
+export const devCom2Toggle = $("dev-com2-toggle");
+export const devCom2Status = $("dev-com2-status");
+export const devCom2DownloadBtn = $("dev-com2-download");
+export const devCom2ClearBtn = $("dev-com2-clear");
+export const devCom2Preview = $("dev-com2-preview");
+export const devLpt1Toggle = $("dev-lpt1-toggle");
+export const devLpt1Status = $("dev-lpt1-status");
+export const devLpt1DownloadBtn = $("dev-lpt1-download");
+export const devLpt1ClearBtn = $("dev-lpt1-clear");
+export const devDownloadAllBtn = $("dev-download-all");
+export const devClearAllBtn = $("dev-clear-all");
+export const devCom1RawToggle = $("dev-com1-raw-toggle");
+export const devCom1StripAnsiToggle = $("dev-com1-strip-ansi");
+export const devConPreview = $("dev-con-preview");
+export const devCom1Preview = $("dev-com1-preview");
+export const devLpt1Preview = $("dev-lpt1-preview");
+
+/* COM2 auto-speak DOM references */
+export const devCom2SpeakToggle = $("dev-com2-speak-toggle");
+export const devCom2MuteScreenToggle = $("dev-com2-mute-screen-toggle");
+export const devCom2ReplaceScreenToggle = $("dev-com2-replace-screen-toggle");

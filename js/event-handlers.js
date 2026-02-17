@@ -1,4 +1,8 @@
-import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect } from './state.js';
+import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect,
+         devConToggle, devCom1Toggle, devCom2Toggle, devLpt1Toggle,
+         devConDownloadBtn, devCom1DownloadBtn, devCom2DownloadBtn, devLpt1DownloadBtn,
+         devConClearBtn, devCom1ClearBtn, devCom2ClearBtn, devLpt1ClearBtn,
+         devDownloadAllBtn, devClearAllBtn } from './state.js';
 import { SCANCODES } from './constants.js';
 import { speakScreen, speakLast, speakNew } from './speech-actions.js';
 import { speak, stopSpeech } from './speech.js';
@@ -12,6 +16,9 @@ import { saveState, restoreState } from './state-save.js';
 import { toggleRecording, downloadTranscript, clearTranscript, startTranscriptPoll, flushTranscriptFile, stopTranscriptPoll, restartTranscriptPoll, testReadTranscript, speakLastTranscript } from './transcript.js';
 import { toggleTrace, downloadTrace, clearTrace, toggleFSTracking, takeSnapshotNow, traceFSDiff } from './trace.js';
 import { saveFileToStorage, fileDB, renderStoredFilesTable } from './file-storage.js';
+import { toggleConCapture, toggleCom1Capture, toggleCom2Capture, toggleLpt1Capture,
+         downloadConCapture, downloadCom1Capture, downloadCom2Capture, downloadLpt1Capture, downloadAllCaptures,
+         clearConCapture, clearCom1Capture, clearCom2Capture, clearLpt1Capture, clearAllCaptures } from './devices.js';
 
 /* ═══════════════════════════════════════════
  * Keyboard Shortcuts (F-keys)
@@ -388,6 +395,25 @@ preloadFilesInput.addEventListener("change", function() {
     }
     this.value = "";
 });
+
+/* ═══════════════════════════════════════════
+ * DOS Device Monitor
+ * ═══════════════════════════════════════════ */
+
+if (devConToggle) devConToggle.addEventListener("change", toggleConCapture);
+if (devCom1Toggle) devCom1Toggle.addEventListener("change", toggleCom1Capture);
+if (devCom2Toggle) devCom2Toggle.addEventListener("change", toggleCom2Capture);
+if (devLpt1Toggle) devLpt1Toggle.addEventListener("change", toggleLpt1Capture);
+if (devConDownloadBtn) devConDownloadBtn.addEventListener("click", downloadConCapture);
+if (devCom1DownloadBtn) devCom1DownloadBtn.addEventListener("click", downloadCom1Capture);
+if (devCom2DownloadBtn) devCom2DownloadBtn.addEventListener("click", downloadCom2Capture);
+if (devLpt1DownloadBtn) devLpt1DownloadBtn.addEventListener("click", downloadLpt1Capture);
+if (devConClearBtn) devConClearBtn.addEventListener("click", clearConCapture);
+if (devCom1ClearBtn) devCom1ClearBtn.addEventListener("click", clearCom1Capture);
+if (devCom2ClearBtn) devCom2ClearBtn.addEventListener("click", clearCom2Capture);
+if (devLpt1ClearBtn) devLpt1ClearBtn.addEventListener("click", clearLpt1Capture);
+if (devDownloadAllBtn) devDownloadAllBtn.addEventListener("click", downloadAllCaptures);
+if (devClearAllBtn) devClearAllBtn.addEventListener("click", clearAllCaptures);
 
 window.addEventListener("load", () => {
     if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {

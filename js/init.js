@@ -17,6 +17,7 @@ import './games.js';
 import './file-storage.js';
 import './event-handlers.js';
 import './game-packager.js';
+import './devices.js';
 
 /* ── Startup ── */
 loadSettings();

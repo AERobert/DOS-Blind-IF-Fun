@@ -235,6 +235,135 @@
         </div>
     </details>
 
+    <!-- DOS Device Monitor -->
+    <details class="cpanel" id="section-device-monitor">
+        <summary><h2>DOS Device Monitor</h2></summary>
+        <div class="cpanel-body">
+        <p style="margin:0 0 0.6rem;font-size:0.9rem;">
+            Monitor DOS device output in real-time. For clean transcript capture,
+            enable <strong>COM2</strong> below and type <code>script COM2</code> in the game.
+        </p>
+
+        <!-- CON (Console/Screen) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-con-toggle"> CON (Console)
+                </label>
+                <span id="dev-con-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-con-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-con-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <pre id="dev-con-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                Captures screen text output. Records changed lines as they appear on screen.
+            </p>
+        </div>
+
+        <!-- COM1 / AUX (Serial Port) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-com1-toggle"> COM1 / AUX
+                </label>
+                <span id="dev-com1-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-com1-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-com1-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com1-raw-toggle"> Include hex for control bytes
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com1-strip-ansi" checked> Strip ANSI escape codes
+                </label>
+            </div>
+            <pre id="dev-com1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                <strong>Warning:</strong> When TextCap TSR is active (graphics mode games),
+                COM1 carries screen mirroring data mixed with any transcript output.
+                Use <strong>COM2 below</strong> for clean transcript capture instead.
+            </p>
+        </div>
+
+        <!-- COM2 (Clean transcript channel) -->
+        <div style="border:1px solid var(--success, #2d8a4e);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-com2-toggle"> COM2 (Transcript)
+                </label>
+                <span id="dev-com2-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-com2-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-com2-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <div style="margin:0.3rem 0 0;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;font-weight:600;color:var(--success,#2d8a4e);">
+                    <input type="checkbox" id="dev-com2-speak-toggle"> Speak responses
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com2-mute-screen-toggle" checked> Mute screen speech
+                </label>
+                <label style="display:flex;align-items:center;gap:0.3rem;font-size:0.8rem;">
+                    <input type="checkbox" id="dev-com2-replace-screen-toggle"> Show transcript on screen
+                </label>
+            </div>
+            <pre id="dev-com2-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                <strong>Recommended for transcript capture.</strong> COM2 is a clean serial port
+                not used by TextCap. In the game, type <code>script COM2</code> to send transcript
+                text here. <strong>Speak responses</strong> auto-speaks each game response as it
+                arrives — no file flushing needed, instant speech. Uses the prompt character
+                from Settings to detect where responses start and end.
+            </p>
+        </div>
+
+        <!-- LPT1 / PRN (Printer) -->
+        <div style="border:1px solid var(--surface-border,#333);border-radius:4px;padding:0.5rem;margin-bottom:0.4rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+                <label style="display:flex;align-items:center;gap:0.3rem;font-weight:600;min-width:10rem;">
+                    <input type="checkbox" id="dev-lpt1-toggle"> PRN / LPT1
+                </label>
+                <span id="dev-lpt1-status" style="font-size:0.85rem;color:var(--dim,#888);min-width:6rem;">off</span>
+                <button id="dev-lpt1-download" class="btn-secondary btn-sm" disabled>Download</button>
+                <button id="dev-lpt1-clear" class="btn-secondary btn-sm" disabled>Clear</button>
+            </div>
+            <pre id="dev-lpt1-preview" style="display:none;max-height:6rem;overflow-y:auto;font-size:0.75rem;margin:0.3rem 0 0;padding:0.3rem;background:var(--surface-bg,#1a1a1a);border-radius:3px;white-space:pre-wrap;word-break:break-all;"></pre>
+            <p style="margin:0.3rem 0 0;font-size:0.75rem;color:var(--dim,#888);">
+                Clean text view of the serial stream with ANSI escape codes automatically stripped.
+                When TextCap is active (graphics mode games), this gives readable text without
+                the cursor positioning clutter. Same data source as COM1, different filtering.
+            </p>
+        </div>
+
+        <div class="panel-row" style="margin-top:0.5rem;gap:0.3rem;">
+            <button id="dev-download-all" class="btn-primary btn-sm">Download All</button>
+            <button id="dev-clear-all" class="btn-secondary btn-sm">Clear All</button>
+        </div>
+
+        <div style="margin-top:0.6rem;border-top:1px solid var(--surface-border,#333);padding-top:0.5rem;">
+            <p style="margin:0;font-size:0.8rem;color:var(--dim,#888);">
+                <strong>Tip:</strong> For real-time transcript capture, enable COM2 above,
+                then in the game type <code>script COM2</code> (or enter <code>COM2</code>
+                as the transcript filename). Transcript text streams directly to COM2 with
+                zero file flushing delays and no TextCap screen mirroring interference.
+            </p>
+            <p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--dim,#888);">
+                <strong>Why COM2?</strong> COM1 is used by the TextCap TSR for screen
+                mirroring in graphics mode games. Writing transcript to COM1 mixes it with
+                screen data. COM2 is a clean, dedicated channel.
+            </p>
+            <p style="margin:0.3rem 0 0;font-size:0.8rem;color:var(--dim,#888);">
+                <strong>DOS device names:</strong>
+                CON = console (screen/keyboard),
+                COM1 = serial port 1 (AUX is alias, used by TextCap),
+                COM2 = serial port 2 (clean channel),
+                LPT1 = printer (PRN is alias),
+                NUL = discard (/dev/null equivalent).
+            </p>
+        </div>
+        </div>
+    </details>
+
     <!-- Command Input -->
     <section class="input-section" aria-labelledby="command-input-heading">
         <h2 id="command-input-heading" style="font-size:1.1rem;font-weight:600;margin:0 0 0.5rem;">Command Input <span id="mode-indicator" class="insert">INSERT</span></h2>
@@ -470,6 +599,7 @@
         <p><strong>Graphics mode &amp; TextCap</strong>: some games (e.g. Time Quest) run in full graphical mode. For games with <code>textcap: true</code> in their preset, the player automatically loads a DOS TSR (TEXTCAP.COM) that hooks the BIOS video interrupt (INT 10h) and mirrors all text output to the serial port. This means game text IS accessible via the screen reader even in graphics mode. The text may appear mixed up if the game draws multiple panels, since all positioned text arrives interleaved. Text-only games do not need TextCap.</p>
         <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
         <p><strong>Adding new games</strong>: use the "Package New Game" panel to upload a ZIP of game files. It creates a disk image (floppy or HDD) and a config .js file. Place the .img in the same folder as this HTML file, put the .js file in <code>js/games/</code>, and add an import line for it in <code>js/game-configs.js</code>. Or use "Load Custom .img" to load any disk image at runtime without a config file.</p>
+        <p><strong>DOS Device Monitor</strong>: monitors output from DOS special devices and captures it to downloadable files. For real-time transcript capture without file flushing, enable <strong>COM2</strong> monitoring and type <code>script COM2</code> in the game. COM2 is a clean serial port not used by TextCap, so transcript text arrives without screen mirroring interference. COM1 is used by TextCap for screen mirroring in graphics mode games, so it carries mixed data. CON captures screen text changes. LPT1/PRN shows ANSI-stripped serial text.</p>
     </details>
 </div>
 
