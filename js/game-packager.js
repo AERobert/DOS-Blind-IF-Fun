@@ -1,5 +1,3 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * Game Packager
  *
@@ -7,6 +5,10 @@
  * configure game settings → download disk image + config file.
  * Uses fflate for ZIP decompression (loaded as a UMD global).
  * ═══════════════════════════════════════════ */
+
+import { $ } from './state.js';
+import { triggerDownload, formatSize } from './ui-helpers.js';
+import { parseFATGeometry, writeFATFile } from './fat.js';
 
 /* ── DOM refs ── */
 const pkgUploadBtn     = $("pkg-upload-btn");
@@ -53,12 +55,12 @@ pkgZipInput.addEventListener("change", function() {
     const reader = new FileReader();
     reader.onload = function() {
         try {
-            if (typeof fflate === "undefined") {
+            if (typeof window.fflate === "undefined") {
                 pkgZipStatus.textContent = "Error: fflate library not loaded.";
                 return;
             }
             const zipData = new Uint8Array(reader.result);
-            const extracted = fflate.unzipSync(zipData);
+            const extracted = window.fflate.unzipSync(zipData);
 
             /* Flatten paths, skip directories and macOS resource forks */
             const files = [];
@@ -164,7 +166,7 @@ function toDos83(name) {
     return ext ? base + "." + ext : base;
 }
 
-/* formatSize() is defined in ui-helpers.js */
+/* formatSize() is imported from ui-helpers.js */
 
 /** Populate the autorun dropdown with files from the extracted ZIP. */
 function populateAutorunSelect() {
@@ -409,7 +411,7 @@ function createFAT16HDD(neededDataBytes) {
 
 /**
  * Write files to a FAT-formatted disk image.
- * Uses the existing parseFATGeometry and writeFATFile from fat.js.
+ * Uses the imported parseFATGeometry and writeFATFile from fat.js.
  */
 function writeFilesToImage(img, files) {
     const geo = parseFATGeometry(img);
@@ -504,11 +506,10 @@ pkgDownloadCfgBtn.addEventListener("click", function() {
         diskType = (pkgTotalSize <= FLOPPY_USABLE) ? "floppy" : "hdd";
     }
 
-    /* Build the config file content */
+    /* Build the config file content (ES module format) */
     let configLines = [];
-    configLines.push('"use strict";');
-    configLines.push("");
-    configLines.push("KNOWN_GAMES[" + JSON.stringify(imgFilename) + "] = {");
+    configLines.push("export default {");
+    configLines.push("    filename: " + JSON.stringify(imgFilename) + ",");
     configLines.push("    label: " + JSON.stringify(label) + ",");
     configLines.push("    autorun: " + JSON.stringify(autorun) + ",");
     configLines.push("    prompt: " + JSON.stringify(prompt) + ",");
@@ -530,8 +531,8 @@ pkgDownloadCfgBtn.addEventListener("click", function() {
 
     triggerDownload(configContent, cfgFileName, "text/javascript");
 
-    /* Also show the script tag the user needs to add */
-    const scriptTag = '<script src="js/games/' + cfgFileName + '"><\/script>';
+    /* Show the import line the user needs to add to game-configs.js */
     pkgBuildStatus.textContent = "Config downloaded: " + cfgFileName +
-        ". Add this line to index.html after the other game scripts: " + scriptTag;
+        ". Add to js/game-configs.js: import " + cfgBaseName.replace(/-/g, "") +
+        " from './games/" + cfgFileName + "'; and add it to the gameList array.";
 });

@@ -1,138 +1,122 @@
-"use strict";
+/* ═══════════════════════════════════════════
+ * Shared mutable state + DOM element references
+ * ═══════════════════════════════════════════ */
 
-/* ═══════ State ═══════ */
-let emulator = null, screenBuffer = [], prevLines = [];
-let isReady = false, refreshTimer = null;
-let commandHistory = [], historyIndex = -1;
-let pendingChanges = [], lastResponseLines = [];
-let changeSettleTimer = null, awaitingResponse = false;
+export const $ = id => document.getElementById(id);
 
-/* Keyboard mode: "insert" (type commands) or "read" (VI-style navigation) */
-let keyMode = "insert";
-/* Reading cursor position in read mode */
-let readRow = 0, readCol = 0;
-
-/* Transcript recording state */
-let isRecording = false;
-let transcriptBuffer = "";
-/* Serial port capture buffer (for DOS SCRIPT -> LPT1 -> COM1 redirect) */
-let serialBuffer = "";
-
-/*
- * TextCap: INT 10h hooking TSR that mirrors text output to COM1.
- * When active, serial bytes are parsed as ANSI escape sequences
- * and rendered to a virtual text buffer for screen reader access.
- * This enables accessibility for games running in graphics mode.
+/* ── Shared mutable state ──
+ * Import as:  import { state } from './state.js';
+ * Access as:  state.emulator, state.isReady = true, etc.
  */
-let textCapActive = false;
-let textCapBuffer = null;   /* 25x80 character grid, initialized on activation */
-let textCapCurRow = 0;
-let textCapCurCol = 0;
-let textCapDirty = false;   /* true when buffer has changed since last render */
+export const state = {
+    emulator: null, screenBuffer: [], prevLines: [],
+    isReady: false, refreshTimer: null,
+    commandHistory: [], historyIndex: -1,
+    pendingChanges: [], lastResponseLines: [],
+    changeSettleTimer: null, awaitingResponse: false,
+    keyMode: "insert", readRow: 0, readCol: 0,
+    isRecording: false, transcriptBuffer: "", serialBuffer: "",
+    textCapActive: false, textCapBuffer: null,
+    textCapCurRow: 0, textCapCurCol: 0, textCapDirty: false,
+    textCapParseState: 0, /* TC_NORMAL */
+    textCapCsiParams: "", textCapOscBuf: "",
+    textCapMarkerPos: 0,
+    transcriptCapActive: false,
+    transcriptLines: [], transcriptLineBuffer: "",
+    transcriptWatchdog: null,
+    transcriptPollTimer: null, transcriptPollLastLength: 0,
+    autoFlushPending: false, autoFlushTimer: null,
+    customFloppyBlob: null,
+    preloadFiles: [],
+    responseLog: [], responseNavIndex: -1,
+    voices: [],
+    traceEnabled: false, traceLog: [], traceStartTime: 0,
+};
 
-/* ANSI parser state machine for TextCap serial input */
-let textCapParseState = TC_NORMAL;
-let textCapCsiParams = "";  /* accumulates CSI parameter digits/semicolons */
-let textCapOscBuf = "";     /* accumulates OSC payload */
+/* ── DOM Element References ── */
 
-/*
- * Transcript capture: polls the game disk directly for a transcript file.
- * When transcript capture is active, it COMPLETELY owns speech output.
- */
-let transcriptCapActive = false;   /* true = transcript owns speech */
-let transcriptLines = [];          /* array of clean transcript lines received */
-let transcriptLineBuffer = "";     /* partial line from last poll */
-let transcriptWatchdog = null;     /* timer to detect stalled transcript */
-
-/* Disk polling state */
-let transcriptPollTimer = null;    /* setInterval handle */
-let transcriptPollLastLength = 0;  /* bytes of file content already processed */
-
-/* Auto-flush state */
-let autoFlushPending = false;      /* true while an auto-flush cycle is running */
-let autoFlushTimer = null;         /* setTimeout handle for delayed flush */
-
-/* Custom floppy image loaded via file picker (ArrayBuffer or null) */
-let customFloppyBlob = null;
-
-/* Files queued for injection onto the game disk before launch */
-let preloadFiles = []; /* Array of { name: string, data: ArrayBuffer } */
-
-/*
- * responseLog: array of response objects:
- *   { type: "command"|"response", lines: string[], index: number }
- * Used for navigating between responses with F7/F8.
- */
-let responseLog = [];
-let responseNavIndex = -1; /* current position in responseLog for nav */
-
-/* TextCap marker detection state */
-let textCapMarkerPos = 0;
-
-/* Speech voices */
-let voices = [];
-
-/* Emulator debug tracing */
-let traceEnabled = false;
-let traceLog = [];          /* array of trace entry strings */
-let traceStartTime = 0;    /* Date.now() when tracing started */
-
-/* ═══════ DOM refs ═══════ */
-const $ = id => document.getElementById(id);
-const bootBtn=$("boot-btn"), bootPromptBtn=$("boot-prompt-btn"), statusEl=$("status");
-const commandInput=$("command-input"), sendBtn=$("send-btn");
-const enterOnlyBtn=$("enter-only-btn"), singleKeyToggle=$("single-key-mode");
-const screenEl=$("accessible-screen"), announcer=$("announcer");
-const historyLog=$("history-log");
-const voiceSelect=$("voice-select"), rateSlider=$("rate-slider"), rateValue=$("rate-value");
-const pitchSlider=$("pitch-slider"), pitchValue=$("pitch-value");
-const autoSpeakToggle=$("auto-speak-toggle"), speakAfterCmdToggle=$("speak-after-cmd-toggle");
-const skipDecorToggle=$("skip-decorative-toggle");
-const speakScreenBtn=$("speak-screen-btn"), speakNewBtn=$("speak-new-btn");
-const speakLastBtn=$("speak-last-btn"), stopSpeechBtn=$("stop-speech-btn");
-const testSpeechBtn=$("test-speech-btn");
-const histPrevBtn=$("hist-prev-btn"), histNextBtn=$("hist-next-btn"), histPosition=$("hist-position");
-const fmRefreshBtn=$("fm-refresh-btn"), fmUploadBtn=$("fm-upload-btn");
-const fmDlFloppyBtn=$("fm-dl-floppy-btn"), fmUploadInput=$("fm-upload-input");
-const fmStatus=$("fm-status"), fmTable=$("fm-table"), fmTbody=$("fm-tbody");
-const stateSaveBtn=$("state-save-btn"), stateRestoreBtn=$("state-restore-btn");
-const stateRestoreInput=$("state-restore-input");
-const modeIndicator=$("mode-indicator");
-const recordBtn=$("record-btn"), downloadTranscriptBtn=$("download-transcript-btn");
-const clearTranscriptBtn=$("clear-transcript-btn"), transcriptFilename=$("transcript-filename");
-const transcriptPreview=$("transcript-preview"), transcriptStats=$("transcript-stats");
-const typingFeedbackSelect=$("typing-feedback-select");
-const gameSelect=$("game-select"), autorunInput=$("autorun-input"), diskTypeSelect=$("disk-type-select");
-const customImgInput=$("custom-img-input"), loadCustomImgBtn=$("load-custom-img-btn");
-const promptCharInput=$("prompt-char-input");
-const promptDepthSelect=$("prompt-depth-select");
-const transcriptCapState=$("transcript-cap-state"), transcriptCapInfo=$("transcript-cap-info");
-const transcriptWatchBtn=$("transcript-watch-btn");
-const transcriptWatchFilename=$("transcript-watch-filename");
-const transcriptPollSpeedSelect=$("transcript-poll-speed");
-const transcriptFlushBtn=$("transcript-flush-btn");
-const transcriptDisconnectBtn=$("transcript-disconnect-btn");
-const transcriptAutoSpeakToggle=$("transcript-auto-speak-toggle");
-const transcriptReplaceScreenToggle=$("transcript-replace-screen-toggle");
-const transcriptMuteScreenToggle=$("transcript-mute-screen-toggle");
-const transcriptAutoFlushToggle=$("transcript-auto-flush-toggle");
-const transcriptAutoFlushOptions=$("transcript-auto-flush-options");
-const transcriptFlushDelay=$("transcript-flush-delay");
-const transcriptFlushD1=$("transcript-flush-d1");
-const transcriptFlushD2=$("transcript-flush-d2");
-const transcriptFlushD3=$("transcript-flush-d3");
-const transcriptFlushTotal=$("transcript-flush-total");
-const transcriptTestReadBtn=$("transcript-test-read-btn");
-const transcriptSpeakLastBtn=$("transcript-speak-last-btn");
-const traceToggleBtn=$("trace-toggle-btn");
-const traceDownloadBtn=$("trace-download-btn");
-const traceClearBtn=$("trace-clear-btn");
-const traceStatus=$("trace-status");
-const traceFSTrackToggle=$("trace-fs-track-toggle");
-const traceFSSnapBtn=$("trace-fs-snap-btn");
-const traceFSDiffBtn=$("trace-fs-diff-btn");
-const histCopyBtn=$("hist-copy-btn");
-const preloadFilesBtn=$("preload-files-btn"), preloadFilesInput=$("preload-files-input");
-const preloadFilesList=$("preload-files-list"), preloadFilesCount=$("preload-files-count");
-const storedFilesTable=$("stored-files-table"), storedFilesTbody=$("stored-files-tbody");
-const storedFilesStatus=$("stored-files-status");
+export const bootBtn = $("boot-btn");
+export const bootPromptBtn = $("boot-prompt-btn");
+export const statusEl = $("status");
+export const commandInput = $("command-input");
+export const sendBtn = $("send-btn");
+export const enterOnlyBtn = $("enter-only-btn");
+export const singleKeyToggle = $("single-key-mode");
+export const screenEl = $("accessible-screen");
+export const announcer = $("announcer");
+export const historyLog = $("history-log");
+export const voiceSelect = $("voice-select");
+export const rateSlider = $("rate-slider");
+export const rateValue = $("rate-value");
+export const pitchSlider = $("pitch-slider");
+export const pitchValue = $("pitch-value");
+export const autoSpeakToggle = $("auto-speak-toggle");
+export const speakAfterCmdToggle = $("speak-after-cmd-toggle");
+export const skipDecorToggle = $("skip-decorative-toggle");
+export const speakScreenBtn = $("speak-screen-btn");
+export const speakNewBtn = $("speak-new-btn");
+export const speakLastBtn = $("speak-last-btn");
+export const stopSpeechBtn = $("stop-speech-btn");
+export const testSpeechBtn = $("test-speech-btn");
+export const histPrevBtn = $("hist-prev-btn");
+export const histNextBtn = $("hist-next-btn");
+export const histPosition = $("hist-position");
+export const fmRefreshBtn = $("fm-refresh-btn");
+export const fmUploadBtn = $("fm-upload-btn");
+export const fmDlFloppyBtn = $("fm-dl-floppy-btn");
+export const fmUploadInput = $("fm-upload-input");
+export const fmStatus = $("fm-status");
+export const fmTable = $("fm-table");
+export const fmTbody = $("fm-tbody");
+export const stateSaveBtn = $("state-save-btn");
+export const stateRestoreBtn = $("state-restore-btn");
+export const stateRestoreInput = $("state-restore-input");
+export const modeIndicator = $("mode-indicator");
+export const recordBtn = $("record-btn");
+export const downloadTranscriptBtn = $("download-transcript-btn");
+export const clearTranscriptBtn = $("clear-transcript-btn");
+export const transcriptFilename = $("transcript-filename");
+export const transcriptPreview = $("transcript-preview");
+export const transcriptStats = $("transcript-stats");
+export const typingFeedbackSelect = $("typing-feedback-select");
+export const gameSelect = $("game-select");
+export const autorunInput = $("autorun-input");
+export const diskTypeSelect = $("disk-type-select");
+export const customImgInput = $("custom-img-input");
+export const loadCustomImgBtn = $("load-custom-img-btn");
+export const promptCharInput = $("prompt-char-input");
+export const promptDepthSelect = $("prompt-depth-select");
+export const transcriptCapState = $("transcript-cap-state");
+export const transcriptCapInfo = $("transcript-cap-info");
+export const transcriptWatchBtn = $("transcript-watch-btn");
+export const transcriptWatchFilename = $("transcript-watch-filename");
+export const transcriptPollSpeedSelect = $("transcript-poll-speed");
+export const transcriptFlushBtn = $("transcript-flush-btn");
+export const transcriptDisconnectBtn = $("transcript-disconnect-btn");
+export const transcriptAutoSpeakToggle = $("transcript-auto-speak-toggle");
+export const transcriptReplaceScreenToggle = $("transcript-replace-screen-toggle");
+export const transcriptMuteScreenToggle = $("transcript-mute-screen-toggle");
+export const transcriptAutoFlushToggle = $("transcript-auto-flush-toggle");
+export const transcriptAutoFlushOptions = $("transcript-auto-flush-options");
+export const transcriptFlushDelay = $("transcript-flush-delay");
+export const transcriptFlushD1 = $("transcript-flush-d1");
+export const transcriptFlushD2 = $("transcript-flush-d2");
+export const transcriptFlushD3 = $("transcript-flush-d3");
+export const transcriptFlushTotal = $("transcript-flush-total");
+export const transcriptTestReadBtn = $("transcript-test-read-btn");
+export const transcriptSpeakLastBtn = $("transcript-speak-last-btn");
+export const traceToggleBtn = $("trace-toggle-btn");
+export const traceDownloadBtn = $("trace-download-btn");
+export const traceClearBtn = $("trace-clear-btn");
+export const traceStatus = $("trace-status");
+export const traceFSTrackToggle = $("trace-fs-track-toggle");
+export const traceFSSnapBtn = $("trace-fs-snap-btn");
+export const traceFSDiffBtn = $("trace-fs-diff-btn");
+export const histCopyBtn = $("hist-copy-btn");
+export const preloadFilesBtn = $("preload-files-btn");
+export const preloadFilesInput = $("preload-files-input");
+export const preloadFilesList = $("preload-files-list");
+export const preloadFilesCount = $("preload-files-count");
+export const storedFilesTable = $("stored-files-table");
+export const storedFilesTbody = $("stored-files-tbody");
+export const storedFilesStatus = $("stored-files-status");

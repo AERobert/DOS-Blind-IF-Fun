@@ -1,12 +1,15 @@
-"use strict";
+import { state, commandInput, modeIndicator } from './state.js';
+import { ROWS, COLS } from './constants.js';
+import { speak } from './speech.js';
+import { rowToString, stripBorderBoth } from './screen.js';
 
 /* ═══════════════════════════════════════════
  * VI-like Reading Mode
  * ═══════════════════════════════════════════ */
 
 /** Switch between insert and read modes */
-function setMode(mode) {
-    keyMode = mode;
+export function setMode(mode) {
+    state.keyMode = mode;
     modeIndicator.textContent = mode.toUpperCase();
     modeIndicator.className = mode;
     if (mode === "insert") {
@@ -18,47 +21,47 @@ function setMode(mode) {
         commandInput.blur();
         /* Start at first non-blank line */
         const firstNB = findFirstNonBlankLine();
-        if (firstNB >= 0) readRow = firstNB;
-        readCol = 0;
+        if (firstNB >= 0) state.readRow = firstNB;
+        state.readCol = 0;
         updateReadingCursor();
         speakCurrentLine();
     }
 }
 
-function findFirstNonBlankLine() {
+export function findFirstNonBlankLine() {
     for (let r = 0; r < ROWS; r++) if (rowToString(r).trim()) return r;
     return 0;
 }
 
-function findLastNonBlankLine() {
+export function findLastNonBlankLine() {
     for (let r = ROWS - 1; r >= 0; r--) if (rowToString(r).trim()) return r;
     return 0;
 }
 
-function clearReadingCursor() {
+export function clearReadingCursor() {
     document.querySelectorAll(".screen-line.reading-cursor").forEach(el => el.classList.remove("reading-cursor"));
 }
 
-function updateReadingCursor() {
+export function updateReadingCursor() {
     clearReadingCursor();
-    const el = document.getElementById("screen-line-" + readRow);
+    const el = document.getElementById("screen-line-" + state.readRow);
     if (el) { el.classList.add("reading-cursor"); el.focus(); }
 }
 
-function speakCurrentLine() {
-    const text = stripBorderBoth(rowToString(readRow));
+export function speakCurrentLine() {
+    const text = stripBorderBoth(rowToString(state.readRow));
     speak(text || "blank line");
 }
 
-function speakCharAtCursor() {
-    const line = rowToString(readRow);
-    const ch = (readCol < line.length) ? line[readCol] : "end of line";
+export function speakCharAtCursor() {
+    const line = rowToString(state.readRow);
+    const ch = (state.readCol < line.length) ? line[state.readCol] : "end of line";
     speak(ch === " " ? "space" : ch);
 }
 
-function getCurrentWord() {
-    const line = rowToString(readRow);
-    let start = readCol, end = readCol;
+export function getCurrentWord() {
+    const line = rowToString(state.readRow);
+    let start = state.readCol, end = state.readCol;
     while (start > 0 && line[start - 1] !== " ") start--;
     while (end < line.length && line[end] !== " ") end++;
     const word = line.slice(start, end).trim();
@@ -66,82 +69,82 @@ function getCurrentWord() {
 }
 
 /** Handle keydown events in READ mode */
-function handleReadKey(e) {
+export function handleReadKey(e) {
     const key = e.key;
     switch (key) {
         case "i": case "Escape":
             e.preventDefault(); setMode("insert"); break;
         case "j": /* Down one line */
             e.preventDefault();
-            if (readRow < ROWS - 1) readRow++;
-            readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
+            if (state.readRow < ROWS - 1) state.readRow++;
+            state.readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
         case "k": /* Up one line */
             e.preventDefault();
-            if (readRow > 0) readRow--;
-            readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
+            if (state.readRow > 0) state.readRow--;
+            state.readCol = 0; updateReadingCursor(); speakCurrentLine(); break;
         case "l": /* Right one char */
             e.preventDefault();
-            if (readCol < COLS - 1) readCol++;
+            if (state.readCol < COLS - 1) state.readCol++;
             speakCharAtCursor(); break;
         case "h": /* Left one char */
             e.preventDefault();
-            if (readCol > 0) readCol--;
+            if (state.readCol > 0) state.readCol--;
             speakCharAtCursor(); break;
         case "w": { /* Next word */
             e.preventDefault();
-            const line = rowToString(readRow);
-            while (readCol < COLS && line[readCol] !== " ") readCol++;
-            while (readCol < COLS && line[readCol] === " ") readCol++;
-            if (readCol >= COLS) readCol = COLS - 1;
+            const line = rowToString(state.readRow);
+            while (state.readCol < COLS && line[state.readCol] !== " ") state.readCol++;
+            while (state.readCol < COLS && line[state.readCol] === " ") state.readCol++;
+            if (state.readCol >= COLS) state.readCol = COLS - 1;
             speak(getCurrentWord().word); break;
         }
         case "b": { /* Previous word */
             e.preventDefault();
-            const line = rowToString(readRow);
-            while (readCol > 0 && line[readCol - 1] === " ") readCol--;
-            while (readCol > 0 && line[readCol - 1] !== " ") readCol--;
+            const line = rowToString(state.readRow);
+            while (state.readCol > 0 && line[state.readCol - 1] === " ") state.readCol--;
+            while (state.readCol > 0 && line[state.readCol - 1] !== " ") state.readCol--;
             speak(getCurrentWord().word); break;
         }
         case "g": /* First line */
             e.preventDefault();
-            readRow = findFirstNonBlankLine(); readCol = 0;
+            state.readRow = findFirstNonBlankLine(); state.readCol = 0;
             updateReadingCursor(); speakCurrentLine(); break;
         case "G": /* Last non-blank line */
             e.preventDefault();
-            readRow = findLastNonBlankLine(); readCol = 0;
+            state.readRow = findLastNonBlankLine(); state.readCol = 0;
             updateReadingCursor(); speakCurrentLine(); break;
         case "F7": /* Page up */
             e.preventDefault();
-            readRow = Math.max(0, readRow - 10); readCol = 0;
+            state.readRow = Math.max(0, state.readRow - 10); state.readCol = 0;
             updateReadingCursor(); speakCurrentLine(); break;
         case "F8": /* Page down */
             e.preventDefault();
-            readRow = Math.min(ROWS - 1, readRow + 10); readCol = 0;
+            state.readRow = Math.min(ROWS - 1, state.readRow + 10); state.readCol = 0;
             updateReadingCursor(); speakCurrentLine(); break;
         case "^": { /* Beginning of line (first non-space char) */
             e.preventDefault();
-            const line = rowToString(readRow);
-            readCol = 0;
-            while (readCol < COLS && line[readCol] === " ") readCol++;
+            const line = rowToString(state.readRow);
+            state.readCol = 0;
+            while (state.readCol < COLS && line[state.readCol] === " ") state.readCol++;
             speakCharAtCursor(); break;
         }
         case "$": { /* End of line (last non-space char) */
             e.preventDefault();
-            const line = rowToString(readRow);
-            readCol = COLS - 1;
-            while (readCol > 0 && line[readCol] === " ") readCol--;
+            const line = rowToString(state.readRow);
+            state.readCol = COLS - 1;
+            while (state.readCol > 0 && line[state.readCol] === " ") state.readCol--;
             speakCharAtCursor(); break;
         }
         case "0": /* Column 0 (absolute start) */
             e.preventDefault();
-            readCol = 0; speakCharAtCursor(); break;
+            state.readCol = 0; speakCharAtCursor(); break;
         case "c": /* Left-click at reading cursor position */
             e.preventDefault();
-            simulateMouseClick(readRow, readCol, false);
+            simulateMouseClick(state.readRow, state.readCol, false);
             break;
         case "C": /* Right-click at reading cursor position */
             e.preventDefault();
-            simulateMouseClick(readRow, readCol, true);
+            simulateMouseClick(state.readRow, state.readCol, true);
             break;
         default:
             /* F-keys still pass through to global handler; block everything else */
@@ -158,8 +161,8 @@ function handleReadKey(e) {
  * Send a series of mouse-delta packets via the v86 bus.
  * Chunks large movements into max +-200 per packet with 20ms gaps.
  */
-async function sendMouseDeltas(totalX, totalY) {
-    if (!emulator || !emulator.bus) return;
+export async function sendMouseDeltas(totalX, totalY) {
+    if (!state.emulator || !state.emulator.bus) return;
     const CHUNK = 200;
 
     while (totalX !== 0 || totalY !== 0) {
@@ -167,7 +170,7 @@ async function sendMouseDeltas(totalX, totalY) {
         const dx = Math.max(-CHUNK, Math.min(CHUNK, totalX));
         const dy = Math.max(-CHUNK, Math.min(CHUNK, totalY));
 
-        emulator.bus.send("mouse-delta", [dx, dy]);
+        state.emulator.bus.send("mouse-delta", [dx, dy]);
 
         totalX -= dx;
         totalY -= dy;
@@ -180,8 +183,8 @@ async function sendMouseDeltas(totalX, totalY) {
 /**
  * Simulate a mouse click at the screen position (row, col).
  */
-async function simulateMouseClick(row, col, rightClick) {
-    if (!emulator || !emulator.bus) {
+export async function simulateMouseClick(row, col, rightClick) {
+    if (!state.emulator || !state.emulator.bus) {
         speak("No emulator running.");
         return;
     }
@@ -222,12 +225,12 @@ async function simulateMouseClick(row, col, rightClick) {
 
     /* Step 3: Click — press then release after a short hold */
     if (rightClick) {
-        emulator.bus.send("mouse-click", [false, false, true]);
+        state.emulator.bus.send("mouse-click", [false, false, true]);
     } else {
-        emulator.bus.send("mouse-click", [true, false, false]);
+        state.emulator.bus.send("mouse-click", [true, false, false]);
     }
 
     /* Hold click for 100ms then release */
     await new Promise(r => setTimeout(r, 100));
-    emulator.bus.send("mouse-click", [false, false, false]);
+    state.emulator.bus.send("mouse-click", [false, false, false]);
 }

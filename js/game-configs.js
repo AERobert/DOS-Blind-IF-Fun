@@ -1,31 +1,30 @@
-"use strict";
-
 /*
  * Game Configuration Hub
  *
- * Initializes the KNOWN_GAMES registry. Individual game config files
- * in js/games/ each add their entry to this object.
- *
- * To add a new game, create a file in js/games/ like:
- *
- *   KNOWN_GAMES["my-game.img"] = {
- *       label: "My Game",
- *       autorun: "GAME.EXE",
- *       prompt: ">",
- *       depth: "below",
- *       disk: "floppy"
- *   };
- *
- * Then add a <script> tag for it in index.html after this file.
+ * To add a new game:
+ *   1. Create a file in js/games/ that exports a default config object
+ *   2. Import it here and add it to the gameList array
  *
  * Config properties:
+ *   filename  - Disk image filename (e.g. "my-game.img")
  *   label     - Display name in the game selector dropdown
- *   autorun   - DOS command to execute after boot (e.g. "GAME.EXE")
+ *   autorun   - DOS command to execute after boot
  *   prompt    - The character(s) the game uses as its input prompt
- *   depth     - "last" = text between last two prompts; "below" = text after last prompt
- *   disk      - "floppy" (B: drive, FAT12) or "hdd" (C: drive, FAT16)
- *   graphics  - (optional) true if game uses EGA/VGA graphics mode
- *   textcap   - (optional) true to load TEXTCAP.COM TSR for graphics-mode text capture
- *   singleKey - (optional) true for menu-driven games (each keypress sent immediately)
+ *   depth     - "last" | "below" — response extraction mode
+ *   disk      - "floppy" | "hdd"
+ *   graphics  - (optional) true if game uses graphics mode
+ *   textcap   - (optional) true to load TEXTCAP.COM TSR
+ *   singleKey - (optional) true for menu-driven single-keypress games
  */
-const KNOWN_GAMES = {};
+
+import tzero from './games/tzero.js';
+import mindwheel from './games/mindwheel.js';
+import timequest from './games/timequest.js';
+import eamondx from './games/eamondx.js';
+
+const gameList = [tzero, mindwheel, timequest, eamondx];
+
+export const KNOWN_GAMES = {};
+for (const game of gameList) {
+    KNOWN_GAMES[game.filename] = game;
+}

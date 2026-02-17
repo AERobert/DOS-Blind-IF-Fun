@@ -1,20 +1,22 @@
-"use strict";
+import { state, stateSaveBtn, stateRestoreBtn, fmStatus, gameSelect } from './state.js';
+import { triggerDownload, formatSize } from './ui-helpers.js';
+import { speak } from './speech.js';
 
 /* ═══════════════════════════════════════════
  * Save / Restore Machine State
  * ═══════════════════════════════════════════ */
 
-async function saveState() {
-    if (!emulator) return;
+export async function saveState() {
+    if (!state.emulator) return;
     stateSaveBtn.disabled = true;
     fmStatus.textContent = "Saving machine state...";
 
     try {
-        const state = await emulator.save_state();
+        const snapshot = await state.emulator.save_state();
         const ts = new Date().toISOString().replace(/[:.]/g, "-").substring(0, 19);
         const gameName = (gameSelect.value || "game").replace(/\.img$/i, "");
-        triggerDownload(new Uint8Array(state), gameName + "-state-" + ts + ".v86state", "application/octet-stream");
-        fmStatus.textContent = "State saved! File size: " + formatSize(state.byteLength);
+        triggerDownload(new Uint8Array(snapshot), gameName + "-state-" + ts + ".v86state", "application/octet-stream");
+        fmStatus.textContent = "State saved! File size: " + formatSize(snapshot.byteLength);
         speak("Machine state saved.");
     } catch(err) {
         fmStatus.textContent = "Save failed: " + err;
@@ -22,15 +24,15 @@ async function saveState() {
     stateSaveBtn.disabled = false;
 }
 
-function restoreState(file) {
-    if (!emulator) return;
+export function restoreState(file) {
+    if (!state.emulator) return;
     stateRestoreBtn.disabled = true;
     fmStatus.textContent = "Restoring state from " + file.name + "...";
 
     const reader = new FileReader();
     reader.onload = async function() {
         try {
-            await emulator.restore_state(reader.result);
+            await state.emulator.restore_state(reader.result);
             fmStatus.textContent = "State restored from " + file.name + ".";
             speak("Machine state restored.");
         } catch(err) {
@@ -38,7 +40,7 @@ function restoreState(file) {
         }
         stateRestoreBtn.disabled = false;
         /* Re-sync screen buffer from emulator */
-        pendingChanges = [];
+        state.pendingChanges = [];
     };
     reader.readAsArrayBuffer(file);
 }

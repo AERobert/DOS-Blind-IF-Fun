@@ -1,18 +1,31 @@
-"use strict";
-
 /* ═══════════════════════════════════════════
  * Emulator
  * ═══════════════════════════════════════════ */
 
-function bootEmulator(autoLaunch) {
-    if (typeof V86Starter === "undefined" && typeof V86 === "undefined") {
+import { state, gameSelect, diskTypeSelect, autorunInput, singleKeyToggle, bootBtn, bootPromptBtn } from './state.js';
+import { KNOWN_GAMES } from './game-configs.js';
+import { ROWS, COLS } from './constants.js';
+import { setStatus, enableInput, announce } from './ui-helpers.js';
+import { trace } from './trace.js';
+import { checkFileIOMarker, traceTextPattern } from './trace.js';
+import { speak } from './speech.js';
+import { typeToDOS } from './commands.js';
+import { getDiskBytesCopy, writeFATFile, parseFATGeometry, replaceDiskImage } from './fat.js';
+import { refreshScreen, initBuffer, initScreenDOM, rowToString } from './screen.js';
+import { initTextCapBuffer, textCapParseByte, renderTextCapScreen, checkTextCapMarker } from './textcap.js';
+import { saveGameSettings } from './settings.js';
+import { getCheckedStoredFileData } from './file-storage.js';
+
+export function bootEmulator(autoLaunch) {
+    const Ctor = window.V86Starter || window.V86;
+    if (!Ctor) {
         setStatus("error", "v86 not loaded. Serve via HTTP (use start.command).");
         return;
     }
 
     /* Determine which disk image to use */
     const selectedImg = gameSelect.value;
-    if (!selectedImg && !customFloppyBlob) {
+    if (!selectedImg && !state.customFloppyBlob) {
         setStatus("error", "No game disk image selected.");
         return;
     }
@@ -23,8 +36,8 @@ function bootEmulator(autoLaunch) {
 
     /* Build disk config based on disk type (floppy -> fdb, hard disk -> hda) */
     const isHDD = diskTypeSelect.value === "hdd";
-    const diskConfig = customFloppyBlob
-        ? { buffer: customFloppyBlob }
+    const diskConfig = state.customFloppyBlob
+        ? { buffer: state.customFloppyBlob }
         : { url: selectedImg };
 
     const emulatorConfig = {
@@ -44,9 +57,8 @@ function bootEmulator(autoLaunch) {
         emulatorConfig.fdb = diskConfig;
     }
 
-    const Ctor = (typeof V86Starter !== "undefined") ? V86Starter : V86;
     try {
-        emulator = new Ctor(emulatorConfig);
+        state.emulator = new Ctor(emulatorConfig);
     } catch (err) {
         setStatus("error", "Emulator failed: " + err.message);
         bootBtn.disabled = false; bootPromptBtn.disabled = false;
@@ -54,17 +66,17 @@ function bootEmulator(autoLaunch) {
     }
     setStatus("loading", "Booting FreeDOS... please wait (15-30 sec).");
 
-    emulator.add_listener("screen-put-char", function(d) {
+    state.emulator.add_listener("screen-put-char", function(d) {
         const row = d[0], col = d[1], ch = d[2];
-        if (row >= 0 && row < ROWS && col >= 0 && col < COLS) screenBuffer[row][col] = ch;
+        if (row >= 0 && row < ROWS && col >= 0 && col < COLS) state.screenBuffer[row][col] = ch;
     });
 
     /* Capture serial port output */
     let serialTraceBuf = "";
     let serialTraceTimer = null;
-    emulator.add_listener("serial0-output-byte", function(byte) {
+    state.emulator.add_listener("serial0-output-byte", function(byte) {
         /* Batch serial bytes into short trace lines to avoid per-byte spam */
-        if (traceEnabled) {
+        if (state.traceEnabled) {
             if (byte >= 32 && byte < 127) {
                 serialTraceBuf += String.fromCharCode(byte);
             } else {
@@ -73,7 +85,7 @@ function bootEmulator(autoLaunch) {
             if (!serialTraceTimer) {
                 serialTraceTimer = setTimeout(function() {
                     if (serialTraceBuf) {
-                        trace("SERIAL", "textCap=" + textCapActive + " data: " + serialTraceBuf);
+                        trace("SERIAL", "textCap=" + state.textCapActive + " data: " + serialTraceBuf);
                         /* Feed printable text to pattern detector */
                         traceTextPattern(serialTraceBuf.replace(/<0x[0-9a-f]+>/g, " "));
                         serialTraceBuf = "";
@@ -87,8 +99,8 @@ function bootEmulator(autoLaunch) {
         checkFileIOMarker(byte);
 
         /* Check for TextCap startup marker (ESC[TC]) */
-        if (!textCapActive && checkTextCapMarker(byte)) {
-            textCapActive = true;
+        if (!state.textCapActive && checkTextCapMarker(byte)) {
+            state.textCapActive = true;
             initTextCapBuffer();
             console.log("TextCap TSR detected — serial text capture active");
             trace("TEXTCAP", "TextCap TSR marker detected — serial text capture active");
@@ -97,7 +109,7 @@ function bootEmulator(autoLaunch) {
         }
 
         /* If TextCap is active, route all printable data to the ANSI parser. */
-        if (textCapActive) {
+        if (state.textCapActive) {
             if (byte === 0x02 || byte === 0x03) return; /* skip framing bytes */
             textCapParseByte(byte);
             return;
@@ -105,8 +117,8 @@ function bootEmulator(autoLaunch) {
 
         /* Original serial capture for printer redirect (no TextCap) */
         if (byte === 13) return;
-        if (byte === 10) { serialBuffer += "\n"; return; }
-        if (byte >= 32 && byte < 127) serialBuffer += String.fromCharCode(byte);
+        if (byte === 10) { state.serialBuffer += "\n"; return; }
+        if (byte >= 32 && byte < 127) state.serialBuffer += String.fromCharCode(byte);
     });
 
     let checks = 0;
@@ -119,14 +131,14 @@ function bootEmulator(autoLaunch) {
         }
         if (found || checks > 200) {
             clearInterval(checker);
-            pendingChanges = []; lastResponseLines = [];
+            state.pendingChanges = []; state.lastResponseLines = [];
             trace("BOOT", "DOS prompt detected after " + checks + " checks (" + (checks * 0.5) + "s)");
 
             /*
              * CRITICAL VoiceOver fix: destroy v86's browser keyboard adapter.
              */
-            if (emulator.keyboard_adapter && emulator.keyboard_adapter.destroy) {
-                emulator.keyboard_adapter.destroy();
+            if (state.emulator.keyboard_adapter && state.emulator.keyboard_adapter.destroy) {
+                state.emulator.keyboard_adapter.destroy();
             }
 
             enableInput();
@@ -138,7 +150,7 @@ function bootEmulator(autoLaunch) {
             /* Inject pre-loaded files + checked stored files onto the game disk */
             setTimeout(async () => {
                 /* Gather all files to inject */
-                const filesToInject = preloadFiles.slice();
+                const filesToInject = state.preloadFiles.slice();
                 try {
                     const stored = await getCheckedStoredFileData();
                     for (let si = 0; si < stored.length; si++) filesToInject.push(stored[si]);
@@ -203,13 +215,13 @@ function bootEmulator(autoLaunch) {
         if (checks % 8 === 0 && checks <= 200) setStatus("loading", "Booting FreeDOS" + ".".repeat((checks/8)%4+1));
     }, 500);
 
-    refreshTimer = setInterval(refreshScreen, 200);
+    state.refreshTimer = setInterval(refreshScreen, 200);
 
     /*
      * Graphics mode detection
      */
     let lastCharEventTime = Date.now();
-    emulator.add_listener("screen-put-char", function() { lastCharEventTime = Date.now(); });
+    state.emulator.add_listener("screen-put-char", function() { lastCharEventTime = Date.now(); });
 
     let wasGraphicsMode = false;
     setInterval(function() {
@@ -227,7 +239,7 @@ function bootEmulator(autoLaunch) {
             if (!wasGraphicsMode) {
                 wasGraphicsMode = true;
 
-                if (textCapActive) {
+                if (state.textCapActive) {
                     announce("Graphics mode detected. Text capture TSR is active — game text will be read via serial port.");
                 } else {
                     /* No TextCap — show the static fallback message */
@@ -256,7 +268,7 @@ function bootEmulator(autoLaunch) {
                 }
             }
 
-            if (textCapActive && textCapDirty && !transcriptCapActive) {
+            if (state.textCapActive && state.textCapDirty && !state.transcriptCapActive) {
                 renderTextCapScreen();
             }
         } else if (hasRecentChars) {

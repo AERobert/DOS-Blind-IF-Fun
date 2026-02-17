@@ -1,11 +1,14 @@
-"use strict";
+import { state, $, diskTypeSelect, fmStatus, fmTable, fmTbody, gameSelect } from './state.js';
+import { getDiskBytes, getDiskBytesCopy, parseFATGeometry, parseFATDir, readFATFile, writeFATFile, replaceDiskImage } from './fat.js';
+import { triggerDownload, formatSize } from './ui-helpers.js';
+import { saveFileToStorage, fileDB, renderStoredFilesTable } from './file-storage.js';
 
 /* ═══════════════════════════════════════════
  * File Manager UI
  * ═══════════════════════════════════════════ */
 
 /** Refresh the file manager table */
-function refreshFileManager() {
+export function refreshFileManager() {
     /* Update drive label in section header */
     const isHDD = diskTypeSelect.value === "hdd";
     const driveLabel = $("fm-drive-label");
@@ -57,7 +60,7 @@ function refreshFileManager() {
             tdAct.appendChild(dlBtn);
 
             /* Save to persistent IndexedDB storage */
-            if (typeof fileDB !== "undefined" && fileDB) {
+            if (fileDB) {
                 const saveBtn = document.createElement("button");
                 saveBtn.className = "btn-secondary btn-sm";
                 saveBtn.textContent = "Save";
@@ -70,7 +73,7 @@ function refreshFileManager() {
                     const fileData = readFATFile(imgNow, geoNow, f);
                     saveFileToStorage(f.fullName, fileData, gameSelect.value).then(function() {
                         fmStatus.textContent = "Saved " + f.fullName + " to storage.";
-                        if (typeof renderStoredFilesTable === "function") renderStoredFilesTable();
+                        renderStoredFilesTable();
                     }).catch(function() {
                         fmStatus.textContent = "Failed to save " + f.fullName + ".";
                     });
@@ -85,7 +88,7 @@ function refreshFileManager() {
 }
 
 /** Download a single file from the game disk */
-function downloadFile(file) {
+export function downloadFile(file) {
     const img = getDiskBytes();
     if (!img) { fmStatus.textContent = "Read error."; return; }
     const geo = parseFATGeometry(img);
@@ -96,7 +99,7 @@ function downloadFile(file) {
 }
 
 /** Upload file(s) to the game disk (floppy or HDD) */
-function uploadFiles(fileList) {
+export function uploadFiles(fileList) {
     const img = getDiskBytesCopy();
     if (!img) { fmStatus.textContent = "Cannot access disk."; return; }
     const geo = parseFATGeometry(img);
@@ -117,7 +120,7 @@ function uploadFiles(fileList) {
     }
 }
 
-async function finishUpload(img, success, total) {
+export async function finishUpload(img, success, total) {
     /* Write the modified image back to the emulator */
     const ok = await replaceDiskImage(img);
     if (ok) {
@@ -129,7 +132,7 @@ async function finishUpload(img, success, total) {
 }
 
 /** Download the entire game disk as a .img file */
-function downloadFloppyImage() {
+export function downloadFloppyImage() {
     const img = getDiskBytes();
     if (!img) { fmStatus.textContent = "Cannot read disk."; return; }
     /* Make a copy so we don't hand out the internal buffer */

@@ -1,6 +1,5 @@
-"use strict";
-
-KNOWN_GAMES["timequest.img"] = {
+export default {
+    filename: "timequest.img",
     label: "Time Quest",
     autorun: "TQ.EXE",
     prompt: ">",

@@ -1,6 +1,5 @@
-"use strict";
-
-KNOWN_GAMES["mindwheel.img"] = {
+export default {
+    filename: "mindwheel.img",
     label: "Mindwheel",
     autorun: "MNDWHEEL.BAT",
     prompt: ">",

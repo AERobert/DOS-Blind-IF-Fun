@@ -1,6 +1,5 @@
-"use strict";
-
-KNOWN_GAMES["eamondx.img"] = {
+export default {
+    filename: "eamondx.img",
     label: "Eamon Deluxe",
     autorun: "EAMONDX.BAT",
     prompt: "?",
