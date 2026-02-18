@@ -15,6 +15,8 @@
  *   graphics  - (optional) true if game uses graphics mode
  *   textcap   - (optional) true to load TEXTCAP.COM TSR
  *   singleKey - (optional) true for menu-driven single-keypress games
+ *   aliases   - (optional) array of command alias objects:
+ *                { pattern, replace, global (default true), caseInsensitive (default false) }
  */
 
 import tzero from './games/tzero.js';

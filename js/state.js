@@ -164,3 +164,10 @@ export const devLpt1Preview = $("dev-lpt1-preview");
 export const devCom2SpeakToggle = $("dev-com2-speak-toggle");
 export const devCom2MuteScreenToggle = $("dev-com2-mute-screen-toggle");
 export const devCom2ReplaceScreenToggle = $("dev-com2-replace-screen-toggle");
+
+/* Command Aliases DOM references */
+export const aliasSection = $("alias-section");
+export const aliasesEnabledToggle = $("aliases-enabled-toggle");
+export const aliasTbody = $("alias-tbody");
+export const aliasAddBtn = $("alias-add-btn");
+export const aliasSaveBtn = $("alias-save-btn");

@@ -377,6 +377,32 @@
             <input type="checkbox" id="single-key-mode" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
             <label for="single-key-mode" style="font-size:0.85rem;cursor:pointer">Single-key mode (for menu-driven games like Eamon)</label>
         </div>
+        <details id="alias-section" style="margin-top:0.75rem;">
+            <summary><h3 style="display:inline;font-size:0.95rem;font-weight:600;margin:0;color:var(--text-secondary);border:none;padding:0;">Command Aliases</h3></summary>
+            <div style="margin-top:0.5rem;">
+                <div class="toggle-group" style="margin-bottom:0.5rem;">
+                    <input type="checkbox" id="aliases-enabled-toggle" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
+                    <label for="aliases-enabled-toggle" style="font-size:0.85rem;cursor:pointer">Apply command aliases</label>
+                </div>
+                <div style="overflow-x:auto;">
+                    <table class="file-table" id="alias-table" style="width:100%;margin-bottom:0.5rem;">
+                        <thead>
+                            <tr>
+                                <th>Pattern (regex)</th>
+                                <th>Replace with</th>
+                                <th>Flags</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alias-tbody"></tbody>
+                    </table>
+                </div>
+                <div style="display:flex;gap:0.5rem;">
+                    <button id="alias-add-btn" class="btn-secondary btn-sm">Add Alias</button>
+                    <button id="alias-save-btn" class="btn-primary btn-sm">Save Changes</button>
+                </div>
+            </div>
+        </details>
     </section>
 
     <!-- Screen -->

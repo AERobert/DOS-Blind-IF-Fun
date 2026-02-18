@@ -3,6 +3,7 @@ import { CHAR_DELAY_MS, SCANCODES, MODIFIER_RELEASE } from './constants.js';
 import { trace } from './trace.js';
 import { addToHistory } from './history.js';
 import { scheduleAutoFlush } from './transcript.js';
+import { applyAliases } from './aliases.js';
 
 /* ═══════════════════════════════════════════
  * Commands
@@ -45,6 +46,10 @@ export function typeToDOS(text, sendEnterAfter) {
  */
 export function sendCommand(text) {
     if (!state.emulator) return;
+
+    /* Apply command aliases (regex replacements) before sending */
+    text = applyAliases(text);
+
     trace("CMD", "sendCommand: " + JSON.stringify(text));
     state.awaitingResponse = true;
     state.pendingChanges = [];

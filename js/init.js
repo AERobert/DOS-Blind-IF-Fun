@@ -18,6 +18,7 @@ import './file-storage.js';
 import './event-handlers.js';
 import './game-packager.js';
 import './devices.js';
+import './aliases.js';
 
 /* ── Startup ── */
 loadSettings();
