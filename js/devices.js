@@ -206,11 +206,32 @@ export function feedCom2Byte(byte) {
         if (devCom2SpeakToggle && devCom2SpeakToggle.checked) {
             processCom2Line(line);
         }
+
+        /* Keep read-mode transcript source in sync with COM2 capture */
+        state.transcriptLines = state.deviceCapture.com2.buffer
+            .split("\n")
+            .filter(function(l) { return l.length > 0; });
+        state.transcriptLineBuffer = "";
+
+        /* Render to screen DOM if replace-screen is enabled */
+        if (devCom2ReplaceScreenToggle && devCom2ReplaceScreenToggle.checked) {
+            renderCom2ToScreen();
+        }
         return;
     }
 
     if (byte >= 0x20 && byte < 0x7F) {
         state.com2LineBuffer += String.fromCharCode(byte);
+
+        /* Expose in-progress line to read mode and replace-screen rendering */
+        state.transcriptLines = state.deviceCapture.com2.buffer
+            .split("\n")
+            .filter(function(l) { return l.length > 0; });
+        state.transcriptLineBuffer = state.com2LineBuffer;
+
+        if (devCom2ReplaceScreenToggle && devCom2ReplaceScreenToggle.checked) {
+            renderCom2ToScreen();
+        }
     }
 }
 
@@ -288,7 +309,14 @@ function flushCom2Speech() {
  * This replaces the VGA screen content with clean transcript text.
  */
 function renderCom2ToScreen() {
-    var allLines = state.deviceCapture.com2.buffer.split("\n");
+    var allLines = state.deviceCapture.com2.buffer
+        .split("\n")
+        .filter(function(l) { return l.length > 0; });
+
+    if (state.com2LineBuffer.length > 0) {
+        allLines.push(state.com2LineBuffer);
+    }
+
     var startIdx = Math.max(0, allLines.length - ROWS);
     var displayLines = allLines.slice(startIdx);
 
@@ -629,6 +657,12 @@ export function clearCom2Capture() {
     state.com2SpeechPending = [];
     clearTimeout(state.com2SpeechTimer);
     state.com2SpeechTimer = null;
+    state.transcriptLines = [];
+    state.transcriptLineBuffer = "";
+
+    if (devCom2ReplaceScreenToggle && devCom2ReplaceScreenToggle.checked) {
+        renderCom2ToScreen();
+    }
     updateDeviceUI();
 }
 
