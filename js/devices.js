@@ -199,8 +199,9 @@ export function feedCom2Byte(byte) {
         var line = state.com2LineBuffer;
         state.com2LineBuffer = "";
 
-        /* Always append to download buffer */
+        /* Always append to download buffer and display lines */
         state.deviceCapture.com2.buffer += line + "\n";
+        state.com2Lines.push(line);
 
         /* Speech processing */
         if (devCom2SpeakToggle && devCom2SpeakToggle.checked) {
@@ -286,11 +287,14 @@ function flushCom2Speech() {
 /**
  * Render the last ROWS of COM2 transcript to the accessible screen.
  * This replaces the VGA screen content with clean transcript text.
+ * Uses state.com2Lines (same source as rowToString) for consistency.
  */
 function renderCom2ToScreen() {
-    var allLines = state.deviceCapture.com2.buffer.split("\n");
-    var startIdx = Math.max(0, allLines.length - ROWS);
-    var displayLines = allLines.slice(startIdx);
+    var startIdx = Math.max(0, state.com2Lines.length - ROWS);
+    var displayLines = state.com2Lines.slice(startIdx);
+    if (state.com2LineBuffer.length > 0) {
+        displayLines.push(state.com2LineBuffer);
+    }
 
     for (var r = 0; r < ROWS; r++) {
         var lineText = (r < displayLines.length) ? displayLines[r] : "";
@@ -486,6 +490,7 @@ export function toggleCom2Capture() {
         trace("DEVICE", "COM2 capture stopped (" + state.deviceCapture.com2.bytes + " bytes)");
         /* Reset speech state on disable */
         state.com2LineBuffer = "";
+        state.com2Lines = [];
         state.com2SpeechPending = [];
         clearTimeout(state.com2SpeechTimer);
         state.com2SpeechTimer = null;
@@ -626,6 +631,7 @@ export function clearCom2Capture() {
     state.deviceCapture.com2.buffer = "";
     state.deviceCapture.com2.bytes = 0;
     state.com2LineBuffer = "";
+    state.com2Lines = [];
     state.com2SpeechPending = [];
     clearTimeout(state.com2SpeechTimer);
     state.com2SpeechTimer = null;
