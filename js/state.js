@@ -164,3 +164,6 @@ export const devLpt1Preview = $("dev-lpt1-preview");
 export const devCom2SpeakToggle = $("dev-com2-speak-toggle");
 export const devCom2MuteScreenToggle = $("dev-com2-mute-screen-toggle");
 export const devCom2ReplaceScreenToggle = $("dev-com2-replace-screen-toggle");
+
+/* Command Aliases DOM references are resolved locally in aliases.js
+   to avoid circular-import issues during module initialization. */

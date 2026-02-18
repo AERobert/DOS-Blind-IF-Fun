@@ -6,5 +6,8 @@ export default {
     depth: "below",
     disk: "hdd",
     graphics: true,
-    textcap: true
+    textcap: true,
+    aliases: [
+        { type: "macro", pattern: "asu", replace: "full mode; script; COM2" }
+    ]
 };

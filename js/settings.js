@@ -1,6 +1,7 @@
 import { state, voiceSelect, rateSlider, rateValue, pitchSlider, pitchValue, gameSelect, autorunInput, diskTypeSelect, autoSpeakToggle, speakAfterCmdToggle, skipDecorToggle, typingFeedbackSelect, promptCharInput, promptDepthSelect, singleKeyToggle } from './state.js';
 import { STORAGE_KEY, GLOBAL_STORAGE_KEY, GAME_STORAGE_PREFIX, GAME_SETTING_DEFAULTS, COLLAPSE_PREFIX } from './constants.js';
 import { KNOWN_GAMES } from './game-configs.js';
+import { initAliasesForGame } from './aliases.js';
 
 /* ═══════════════════════════════════════════
  * localStorage: persist settings
@@ -81,6 +82,18 @@ export function saveGameSettings() {
     const gameName = gameSelect.value;
     if (!gameName) return;
     try {
+        /* Read existing stored data to preserve alias definitions */
+        let existingAliases, existingAliasesEnabled, existingMacroDelay;
+        try {
+            const raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
+            if (raw) {
+                const prev = JSON.parse(raw);
+                if (prev.aliases) existingAliases = prev.aliases;
+                if (prev.aliasesEnabled !== undefined) existingAliasesEnabled = prev.aliasesEnabled;
+                if (prev.aliasMacroDelay !== undefined) existingMacroDelay = prev.aliasMacroDelay;
+            }
+        } catch(e) {}
+
         const s = {
             autoSpeak: autoSpeakToggle.checked,
             speakAfterCmd: speakAfterCmdToggle.checked,
@@ -92,6 +105,10 @@ export function saveGameSettings() {
             autorun: autorunInput.value,
             singleKey: singleKeyToggle.checked
         };
+        /* Preserve alias data managed by the aliases module */
+        if (existingAliases) s.aliases = existingAliases;
+        if (existingAliasesEnabled !== undefined) s.aliasesEnabled = existingAliasesEnabled;
+        if (existingMacroDelay !== undefined) s.aliasMacroDelay = existingMacroDelay;
         localStorage.setItem(GAME_STORAGE_PREFIX + gameName, JSON.stringify(s));
     } catch(e) {}
 }
@@ -137,6 +154,9 @@ export function loadGameSettings() {
     diskTypeSelect.value = s.diskType || "floppy";
     autorunInput.value = s.autorun !== undefined ? s.autorun : "";
     singleKeyToggle.checked = !!s.singleKey;
+
+    /* Initialize alias UI for this game */
+    initAliasesForGame();
 }
 
 /* ── Combined save/load (backward-compatible wrapper) ── */

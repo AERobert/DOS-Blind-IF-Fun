@@ -3,6 +3,7 @@ import { CHAR_DELAY_MS, SCANCODES, MODIFIER_RELEASE } from './constants.js';
 import { trace } from './trace.js';
 import { addToHistory } from './history.js';
 import { scheduleAutoFlush } from './transcript.js';
+import { applyAliases, getMultiCommandDelay } from './aliases.js';
 
 /* ═══════════════════════════════════════════
  * Commands
@@ -45,6 +46,16 @@ export function typeToDOS(text, sendEnterAfter) {
  */
 export function sendCommand(text) {
     if (!state.emulator) return;
+
+    /* Apply command aliases — may return a string or array (macro expansion) */
+    var result = applyAliases(text);
+
+    if (Array.isArray(result)) {
+        sendMultiCommands(result, text);
+        return;
+    }
+
+    text = result;
     trace("CMD", "sendCommand: " + JSON.stringify(text));
     state.awaitingResponse = true;
     state.pendingChanges = [];
@@ -61,6 +72,44 @@ export function sendCommand(text) {
         if (transcriptAutoFlushToggle.checked && !state.autoFlushPending) {
             scheduleAutoFlush();
         }
+    }
+}
+
+/**
+ * Send multiple commands sequentially (from macro expansion).
+ * Each command is typed and sent with Enter, with a configurable delay
+ * between commands to let the game process each one.
+ * @param {string[]} commands - Array of command strings to send
+ * @param {string} originalText - The original macro trigger text (for history)
+ */
+async function sendMultiCommands(commands, originalText) {
+    var delay = getMultiCommandDelay();
+
+    /* Log the macro trigger in history */
+    if (originalText.trim()) {
+        state.commandHistory.push(originalText);
+        state.historyIndex = -1;
+        addToHistory(originalText + "  [macro \u2192 " + commands.join("; ") + "]", true);
+        state.responseLog.push({ type: "command", lines: [originalText] });
+    }
+
+    for (var i = 0; i < commands.length; i++) {
+        var cmd = commands[i];
+        trace("CMD", "sendMultiCommands [" + (i + 1) + "/" + commands.length + "]: " + JSON.stringify(cmd));
+        state.awaitingResponse = true;
+        state.pendingChanges = [];
+
+        await typeToDOS(cmd, true);
+
+        /* Wait between commands so the game can process each one */
+        if (i < commands.length - 1) {
+            await new Promise(function(resolve) { setTimeout(resolve, delay); });
+        }
+    }
+
+    /* Auto-flush after all macro commands are sent */
+    if (transcriptAutoFlushToggle.checked && !state.autoFlushPending) {
+        scheduleAutoFlush();
     }
 }
 
