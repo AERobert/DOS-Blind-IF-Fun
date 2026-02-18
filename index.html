@@ -384,21 +384,17 @@
                     <input type="checkbox" id="aliases-enabled-toggle" style="width:1.1rem;height:1.1rem;accent-color:var(--accent)">
                     <label for="aliases-enabled-toggle" style="font-size:0.85rem;cursor:pointer">Apply command aliases</label>
                 </div>
-                <div style="overflow-x:auto;">
-                    <table class="file-table" id="alias-table" style="width:100%;margin-bottom:0.5rem;">
-                        <thead>
-                            <tr>
-                                <th>Pattern (regex)</th>
-                                <th>Replace with</th>
-                                <th>Flags</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="alias-tbody"></tbody>
-                    </table>
+                <div style="margin-bottom:0.5rem;">
+                    <label for="alias-macro-delay" style="font-size:0.85rem;color:var(--text-secondary);">
+                        Delay between macro commands:
+                        <input type="number" id="alias-macro-delay" value="500" min="100" max="5000" step="100"
+                               style="width:5rem;font-size:0.85rem;background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border);border-radius:4px;padding:0.2rem 0.4rem;"> ms
+                    </label>
                 </div>
-                <div style="display:flex;gap:0.5rem;">
-                    <button id="alias-add-btn" class="btn-secondary btn-sm">Add Alias</button>
+                <ul id="alias-list" role="list"></ul>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button id="alias-add-regex-btn" class="btn-secondary btn-sm">Add Regex Alias</button>
+                    <button id="alias-add-macro-btn" class="btn-secondary btn-sm">Add Macro</button>
                     <button id="alias-save-btn" class="btn-primary btn-sm">Save Changes</button>
                 </div>
             </div>

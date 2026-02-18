@@ -7,23 +7,23 @@ import { announce } from './ui-helpers.js';
    (settings.js → aliases.js → state.js all load at startup) */
 const aliasSection = document.getElementById("alias-section");
 const aliasesEnabledToggle = document.getElementById("aliases-enabled-toggle");
-const aliasTbody = document.getElementById("alias-tbody");
-const aliasAddBtn = document.getElementById("alias-add-btn");
+const aliasList = document.getElementById("alias-list");
+const aliasAddRegexBtn = document.getElementById("alias-add-regex-btn");
+const aliasAddMacroBtn = document.getElementById("alias-add-macro-btn");
 const aliasSaveBtn = document.getElementById("alias-save-btn");
+const aliasMacroDelay = document.getElementById("alias-macro-delay");
 
 /* ═══════════════════════════════════════════
  * Command Aliases
  *
- * Regex-based find/replace aliases applied to commands before they
- * are sent to the emulator. Each alias has:
- *   pattern          - regex pattern string
- *   replace          - replacement string (supports $1, $2 backrefs)
- *   global           - apply globally (default true)
- *   caseInsensitive  - case-insensitive matching (default false)
+ * Two alias types:
+ *   "regex" — regex find/replace on the command text
+ *     { type:"regex", pattern, replace, global (default true), caseInsensitive (default false) }
+ *   "macro" — exact-match trigger that expands to multiple semicolon-separated commands
+ *     { type:"macro", pattern (trigger), replace (commands joined by ;) }
  *
- * Aliases can come from the game config (static, read-only) or from
- * localStorage (user-defined, editable). User aliases take priority
- * (applied first) and appear at the top of the table.
+ * Aliases can come from game configs (static) or localStorage (user-editable).
+ * User aliases take priority (applied first) and appear at the top of the list.
  * ═══════════════════════════════════════════ */
 
 /* Working copy of user aliases for the edit UI (not yet saved) */
@@ -31,7 +31,6 @@ let workingAliases = [];
 
 /* ── Alias data access ── */
 
-/** Get aliases from the current game's config (static, read-only). */
 function getConfigAliases() {
     const gameName = gameSelect.value;
     if (!gameName) return [];
@@ -40,7 +39,6 @@ function getConfigAliases() {
     return preset.aliases;
 }
 
-/** Get user-defined aliases from localStorage for the current game. */
 function getStoredAliases() {
     const gameName = gameSelect.value;
     if (!gameName) return [];
@@ -54,7 +52,6 @@ function getStoredAliases() {
     }
 }
 
-/** Get all aliases: stored (user) first, then config. */
 function getAllAliases() {
     return [...getStoredAliases(), ...getConfigAliases()];
 }
@@ -63,17 +60,24 @@ function getAllAliases() {
 
 /**
  * Apply all active aliases to a command string.
- * Returns the transformed string (or the original if aliases are disabled).
+ * Returns a string for single commands, or an array of strings for macro expansion.
  */
 export function applyAliases(text) {
-    if (!aliasesEnabledToggle || !aliasesEnabledToggle.checked) {
-        console.log("[aliases] disabled or toggle missing, toggle=", aliasesEnabledToggle,
-                    "checked=", aliasesEnabledToggle ? aliasesEnabledToggle.checked : "N/A");
-        return text;
-    }
+    if (!aliasesEnabledToggle || !aliasesEnabledToggle.checked) return text;
     const aliases = getAllAliases();
-    const original = text;
+
+    /* First pass: check for exact macro matches (case-insensitive) */
+    var trimmed = text.trim();
     for (const alias of aliases) {
+        if ((alias.type === "macro") && alias.pattern &&
+            trimmed.toLowerCase() === alias.pattern.trim().toLowerCase()) {
+            return alias.replace.split(";").map(function(cmd) { return cmd.trim(); }).filter(function(cmd) { return cmd; });
+        }
+    }
+
+    /* Second pass: apply regex aliases */
+    for (const alias of aliases) {
+        if (alias.type === "macro") continue;
         try {
             let flags = '';
             if (alias.global !== false) flags += 'g';
@@ -81,96 +85,143 @@ export function applyAliases(text) {
             const re = new RegExp(alias.pattern, flags);
             text = text.replace(re, alias.replace);
         } catch (e) {
-            console.warn("[aliases] bad regex:", alias.pattern, e);
+            /* Invalid regex pattern — skip */
         }
-    }
-    if (text !== original) {
-        console.log("[aliases]", JSON.stringify(original), "\u2192", JSON.stringify(text));
-    } else {
-        console.log("[aliases] no match — input:", JSON.stringify(text), "aliases:", aliases.length);
     }
     return text;
 }
 
-/* ── UI rendering ── */
+/**
+ * Get the configured delay (ms) between macro commands.
+ */
+export function getMultiCommandDelay() {
+    const val = aliasMacroDelay ? parseInt(aliasMacroDelay.value, 10) : 500;
+    return Math.max(100, Math.min(5000, val || 500));
+}
 
-/** Render the alias table from workingAliases + config aliases. */
-export function renderAliasTable() {
-    if (!aliasTbody) return;
-    aliasTbody.innerHTML = "";
+/* ── UI rendering (list-based) ── */
+
+/** Render the alias list from workingAliases + config aliases. */
+export function renderAliasList() {
+    if (!aliasList) return;
+    aliasList.innerHTML = "";
 
     const configAliases = getConfigAliases();
 
-    /* User (localStorage) aliases — editable rows */
+    /* User (localStorage) aliases — editable items */
     workingAliases.forEach(function(alias, i) {
-        const tr = document.createElement("tr");
-        tr.dataset.source = "user";
+        var li = document.createElement("li");
+        li.className = "alias-item";
+        var isMacro = alias.type === "macro";
 
-        /* Pattern cell */
-        const tdPattern = document.createElement("td");
-        const patternInput = document.createElement("input");
-        patternInput.type = "text";
-        patternInput.value = alias.pattern;
-        patternInput.className = "alias-input";
-        patternInput.setAttribute("aria-label", "Regex pattern");
-        patternInput.spellcheck = false;
-        patternInput.addEventListener("input", function() {
-            workingAliases[i].pattern = this.value;
-        });
-        tdPattern.appendChild(patternInput);
-        tr.appendChild(tdPattern);
+        /* Type badge */
+        var badge = document.createElement("span");
+        badge.className = "alias-type-badge " + (isMacro ? "macro" : "regex");
+        badge.textContent = isMacro ? "Macro" : "Regex";
+        li.appendChild(badge);
 
-        /* Replace cell */
-        const tdReplace = document.createElement("td");
-        const replaceInput = document.createElement("input");
-        replaceInput.type = "text";
-        replaceInput.value = alias.replace;
-        replaceInput.className = "alias-input";
-        replaceInput.setAttribute("aria-label", "Replacement text");
-        replaceInput.spellcheck = false;
-        replaceInput.addEventListener("input", function() {
-            workingAliases[i].replace = this.value;
-        });
-        tdReplace.appendChild(replaceInput);
-        tr.appendChild(tdReplace);
+        if (isMacro) {
+            /* Trigger field */
+            var trigLabel = document.createElement("label");
+            trigLabel.className = "alias-field";
+            var trigSpan = document.createElement("span");
+            trigSpan.className = "alias-field-label";
+            trigSpan.textContent = "Trigger:";
+            trigLabel.appendChild(trigSpan);
+            var trigInput = document.createElement("input");
+            trigInput.type = "text";
+            trigInput.value = alias.pattern;
+            trigInput.className = "alias-input";
+            trigInput.setAttribute("aria-label", "Macro trigger text");
+            trigInput.spellcheck = false;
+            trigInput.addEventListener("input", function() { workingAliases[i].pattern = this.value; });
+            trigLabel.appendChild(trigInput);
+            li.appendChild(trigLabel);
 
-        /* Flags cell */
-        const tdFlags = document.createElement("td");
-        tdFlags.style.cssText = "white-space:nowrap;";
+            /* Commands field */
+            var cmdLabel = document.createElement("label");
+            cmdLabel.className = "alias-field alias-field-wide";
+            var cmdSpan = document.createElement("span");
+            cmdSpan.className = "alias-field-label";
+            cmdSpan.textContent = "Commands:";
+            cmdLabel.appendChild(cmdSpan);
+            var cmdInput = document.createElement("input");
+            cmdInput.type = "text";
+            cmdInput.value = alias.replace;
+            cmdInput.className = "alias-input";
+            cmdInput.setAttribute("aria-label", "Commands separated by semicolons");
+            cmdInput.placeholder = "cmd1; cmd2; cmd3";
+            cmdInput.spellcheck = false;
+            cmdInput.addEventListener("input", function() { workingAliases[i].replace = this.value; });
+            cmdLabel.appendChild(cmdInput);
+            li.appendChild(cmdLabel);
+        } else {
+            /* Pattern field */
+            var patLabel = document.createElement("label");
+            patLabel.className = "alias-field";
+            var patSpan = document.createElement("span");
+            patSpan.className = "alias-field-label";
+            patSpan.textContent = "Pattern:";
+            patLabel.appendChild(patSpan);
+            var patInput = document.createElement("input");
+            patInput.type = "text";
+            patInput.value = alias.pattern;
+            patInput.className = "alias-input";
+            patInput.setAttribute("aria-label", "Regex pattern");
+            patInput.spellcheck = false;
+            patInput.addEventListener("input", function() { workingAliases[i].pattern = this.value; });
+            patLabel.appendChild(patInput);
+            li.appendChild(patLabel);
 
-        const globalLabel = document.createElement("label");
-        globalLabel.style.cssText = "font-size:0.8rem;margin-right:0.5rem;cursor:pointer;";
-        const globalCb = document.createElement("input");
-        globalCb.type = "checkbox";
-        globalCb.checked = alias.global !== false;
-        globalCb.style.cssText = "width:0.9rem;height:0.9rem;accent-color:var(--accent);vertical-align:middle;";
-        globalCb.addEventListener("change", function() {
-            workingAliases[i].global = this.checked;
-        });
-        globalLabel.appendChild(globalCb);
-        globalLabel.append(" G");
-        tdFlags.appendChild(globalLabel);
+            /* Replace field */
+            var repLabel = document.createElement("label");
+            repLabel.className = "alias-field";
+            var repSpan = document.createElement("span");
+            repSpan.className = "alias-field-label";
+            repSpan.textContent = "Replace:";
+            repLabel.appendChild(repSpan);
+            var repInput = document.createElement("input");
+            repInput.type = "text";
+            repInput.value = alias.replace;
+            repInput.className = "alias-input";
+            repInput.setAttribute("aria-label", "Replacement text");
+            repInput.spellcheck = false;
+            repInput.addEventListener("input", function() { workingAliases[i].replace = this.value; });
+            repLabel.appendChild(repInput);
+            li.appendChild(repLabel);
 
-        const caseiLabel = document.createElement("label");
-        caseiLabel.style.cssText = "font-size:0.8rem;cursor:pointer;";
-        const caseiCb = document.createElement("input");
-        caseiCb.type = "checkbox";
-        caseiCb.checked = !!alias.caseInsensitive;
-        caseiCb.style.cssText = "width:0.9rem;height:0.9rem;accent-color:var(--accent);vertical-align:middle;";
-        caseiCb.addEventListener("change", function() {
-            workingAliases[i].caseInsensitive = this.checked;
-        });
-        caseiLabel.appendChild(caseiCb);
-        caseiLabel.append(" I");
-        tdFlags.appendChild(caseiLabel);
+            /* Flags */
+            var flagsSpan = document.createElement("span");
+            flagsSpan.className = "alias-flags";
 
-        tr.appendChild(tdFlags);
+            var gLabel = document.createElement("label");
+            var gCb = document.createElement("input");
+            gCb.type = "checkbox";
+            gCb.checked = alias.global !== false;
+            gCb.style.cssText = "width:0.9rem;height:0.9rem;accent-color:var(--accent);";
+            gCb.addEventListener("change", function() { workingAliases[i].global = this.checked; });
+            gLabel.appendChild(gCb);
+            gLabel.append(" G");
+            flagsSpan.appendChild(gLabel);
 
-        /* Actions cell */
-        const tdActions = document.createElement("td");
-        tdActions.style.cssText = "white-space:nowrap;";
+            var iLabel = document.createElement("label");
+            var iCb = document.createElement("input");
+            iCb.type = "checkbox";
+            iCb.checked = !!alias.caseInsensitive;
+            iCb.style.cssText = "width:0.9rem;height:0.9rem;accent-color:var(--accent);";
+            iCb.addEventListener("change", function() { workingAliases[i].caseInsensitive = this.checked; });
+            iLabel.appendChild(iCb);
+            iLabel.append(" I");
+            flagsSpan.appendChild(iLabel);
 
-        const upBtn = document.createElement("button");
+            li.appendChild(flagsSpan);
+        }
+
+        /* Action buttons */
+        var actions = document.createElement("span");
+        actions.className = "alias-actions";
+
+        var upBtn = document.createElement("button");
         upBtn.className = "btn-secondary btn-sm";
         upBtn.textContent = "\u25B2";
         upBtn.title = "Move up (higher priority)";
@@ -178,7 +229,7 @@ export function renderAliasTable() {
         upBtn.disabled = (i === 0);
         upBtn.addEventListener("click", function() { moveAlias(i, -1); });
 
-        const downBtn = document.createElement("button");
+        var downBtn = document.createElement("button");
         downBtn.className = "btn-secondary btn-sm";
         downBtn.textContent = "\u25BC";
         downBtn.title = "Move down (lower priority)";
@@ -186,111 +237,168 @@ export function renderAliasTable() {
         downBtn.disabled = (i === workingAliases.length - 1);
         downBtn.addEventListener("click", function() { moveAlias(i, 1); });
 
-        const removeBtn = document.createElement("button");
+        var removeBtn = document.createElement("button");
         removeBtn.className = "btn-secondary btn-sm";
         removeBtn.textContent = "\u00D7";
         removeBtn.title = "Remove alias";
         removeBtn.setAttribute("aria-label", "Remove alias");
         removeBtn.addEventListener("click", function() { removeAlias(i); });
 
-        tdActions.appendChild(upBtn);
-        tdActions.append(" ");
-        tdActions.appendChild(downBtn);
-        tdActions.append(" ");
-        tdActions.appendChild(removeBtn);
-        tr.appendChild(tdActions);
+        actions.appendChild(upBtn);
+        actions.appendChild(downBtn);
+        actions.appendChild(removeBtn);
+        li.appendChild(actions);
 
-        aliasTbody.appendChild(tr);
+        aliasList.appendChild(li);
     });
 
-    /* Config aliases — read-only rows at the bottom */
+    /* Config aliases — read-only items at the bottom */
     configAliases.forEach(function(alias) {
-        const tr = document.createElement("tr");
-        tr.dataset.source = "config";
-        tr.className = "alias-config-row";
+        var li = document.createElement("li");
+        li.className = "alias-item alias-config-row";
+        var isMacro = alias.type === "macro";
 
-        const tdPattern = document.createElement("td");
-        const code1 = document.createElement("code");
-        code1.textContent = alias.pattern;
-        tdPattern.appendChild(code1);
-        tr.appendChild(tdPattern);
+        var badge = document.createElement("span");
+        badge.className = "alias-type-badge " + (isMacro ? "macro" : "regex");
+        badge.textContent = isMacro ? "Macro" : "Regex";
+        li.appendChild(badge);
 
-        const tdReplace = document.createElement("td");
-        const code2 = document.createElement("code");
-        code2.textContent = alias.replace;
-        tdReplace.appendChild(code2);
-        tr.appendChild(tdReplace);
+        if (isMacro) {
+            var trigField = document.createElement("span");
+            trigField.className = "alias-field";
+            var trigLbl = document.createElement("span");
+            trigLbl.className = "alias-field-label";
+            trigLbl.textContent = "Trigger:";
+            trigField.appendChild(trigLbl);
+            var trigCode = document.createElement("code");
+            trigCode.textContent = alias.pattern;
+            trigField.appendChild(trigCode);
+            li.appendChild(trigField);
 
-        const tdFlags = document.createElement("td");
-        tdFlags.style.cssText = "white-space:nowrap;font-size:0.8rem;";
-        var flagParts = [];
-        if (alias.global !== false) flagParts.push("G");
-        if (alias.caseInsensitive) flagParts.push("I");
-        tdFlags.textContent = flagParts.join(" ") || "\u2014";
-        tr.appendChild(tdFlags);
+            var cmdField = document.createElement("span");
+            cmdField.className = "alias-field";
+            var cmdLbl = document.createElement("span");
+            cmdLbl.className = "alias-field-label";
+            cmdLbl.textContent = "Commands:";
+            cmdField.appendChild(cmdLbl);
+            var cmdCode = document.createElement("code");
+            cmdCode.textContent = alias.replace;
+            cmdField.appendChild(cmdCode);
+            li.appendChild(cmdField);
+        } else {
+            var patField = document.createElement("span");
+            patField.className = "alias-field";
+            var patLbl = document.createElement("span");
+            patLbl.className = "alias-field-label";
+            patLbl.textContent = "Pattern:";
+            patField.appendChild(patLbl);
+            var patCode = document.createElement("code");
+            patCode.textContent = alias.pattern;
+            patField.appendChild(patCode);
+            li.appendChild(patField);
 
-        const tdActions = document.createElement("td");
-        tdActions.style.cssText = "font-size:0.8rem;color:var(--text-secondary);";
-        tdActions.textContent = "(config)";
-        tr.appendChild(tdActions);
+            var repField = document.createElement("span");
+            repField.className = "alias-field";
+            var repLbl = document.createElement("span");
+            repLbl.className = "alias-field-label";
+            repLbl.textContent = "Replace:";
+            repField.appendChild(repLbl);
+            var repCode = document.createElement("code");
+            repCode.textContent = alias.replace;
+            repField.appendChild(repCode);
+            li.appendChild(repField);
 
-        aliasTbody.appendChild(tr);
+            var flagsText = document.createElement("span");
+            flagsText.className = "alias-flags";
+            var parts = [];
+            if (alias.global !== false) parts.push("G");
+            if (alias.caseInsensitive) parts.push("I");
+            flagsText.textContent = parts.join(" ") || "\u2014";
+            li.appendChild(flagsText);
+        }
+
+        var cfgLabel = document.createElement("span");
+        cfgLabel.className = "alias-actions";
+        cfgLabel.style.color = "var(--text-secondary)";
+        cfgLabel.style.fontSize = "0.8rem";
+        cfgLabel.textContent = "(config)";
+        li.appendChild(cfgLabel);
+
+        aliasList.appendChild(li);
     });
 }
 
 /* ── UI actions ── */
 
 function moveAlias(index, direction) {
-    const newIndex = index + direction;
+    var newIndex = index + direction;
     if (newIndex < 0 || newIndex >= workingAliases.length) return;
-    const temp = workingAliases[index];
+    var temp = workingAliases[index];
     workingAliases[index] = workingAliases[newIndex];
     workingAliases[newIndex] = temp;
-    renderAliasTable();
+    renderAliasList();
 }
 
 function removeAlias(index) {
     workingAliases.splice(index, 1);
-    renderAliasTable();
+    renderAliasList();
 }
 
-function addAlias() {
+function addRegexAlias() {
     workingAliases.unshift({
+        type: "regex",
         pattern: "",
         replace: "",
         global: true,
         caseInsensitive: false
     });
-    renderAliasTable();
-    /* Focus the pattern input of the new row */
-    const firstInput = aliasTbody.querySelector("tr[data-source='user'] .alias-input");
+    renderAliasList();
+    focusFirstInput();
+}
+
+function addMacroAlias() {
+    workingAliases.unshift({
+        type: "macro",
+        pattern: "",
+        replace: ""
+    });
+    renderAliasList();
+    focusFirstInput();
+}
+
+function focusFirstInput() {
+    if (!aliasList) return;
+    var firstInput = aliasList.querySelector("li:first-child .alias-input");
     if (firstInput) firstInput.focus();
 }
 
 function saveAliasChanges() {
-    const gameName = gameSelect.value;
+    var gameName = gameSelect.value;
     if (!gameName) return;
 
     /* Filter out aliases with empty patterns */
-    const toSave = workingAliases.filter(function(a) { return a.pattern.trim() !== ""; });
+    var toSave = workingAliases.filter(function(a) { return a.pattern.trim() !== ""; });
 
     try {
-        const raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
-        const s = raw ? JSON.parse(raw) : {};
+        var raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
+        var s = raw ? JSON.parse(raw) : {};
         s.aliases = toSave;
         s.aliasesEnabled = aliasesEnabledToggle.checked;
+        if (aliasMacroDelay) s.aliasMacroDelay = parseInt(aliasMacroDelay.value, 10) || 500;
         localStorage.setItem(GAME_STORAGE_PREFIX + gameName, JSON.stringify(s));
     } catch (e) {}
 
-    /* Update working copy to match saved (removes empty-pattern entries) */
     workingAliases = toSave.map(function(a) {
-        return { pattern: a.pattern, replace: a.replace, global: a.global, caseInsensitive: a.caseInsensitive };
+        var copy = { type: a.type || "regex", pattern: a.pattern, replace: a.replace };
+        if (copy.type === "regex") {
+            copy.global = a.global;
+            copy.caseInsensitive = a.caseInsensitive;
+        }
+        return copy;
     });
-    renderAliasTable();
+    renderAliasList();
 
-    /* Collapse the section */
     if (aliasSection) aliasSection.open = false;
-
     announce("Aliases saved.");
 }
 
@@ -301,50 +409,58 @@ function saveAliasChanges() {
  * Called when game settings are loaded (game change or page load).
  */
 export function initAliasesForGame() {
-    /* Load stored user aliases into the working copy */
     workingAliases = getStoredAliases().map(function(a) {
-        return { pattern: a.pattern, replace: a.replace, global: a.global, caseInsensitive: a.caseInsensitive };
+        var copy = { type: a.type || "regex", pattern: a.pattern, replace: a.replace };
+        if (copy.type === "regex") {
+            copy.global = a.global;
+            copy.caseInsensitive = a.caseInsensitive;
+        }
+        return copy;
     });
 
-    renderAliasTable();
+    renderAliasList();
 
-    /* Set the enabled toggle default:
-     * If a saved value exists in localStorage, use it.
-     * Otherwise, default ON if any aliases exist (config or stored), OFF if none. */
+    /* Set enabled toggle default */
     if (aliasesEnabledToggle) {
-        const gameName = gameSelect.value;
-        let savedEnabled;
+        var gameName = gameSelect.value;
+        var savedEnabled;
+        var savedDelay;
         try {
-            const raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
+            var raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
             if (raw) {
-                const s = JSON.parse(raw);
+                var s = JSON.parse(raw);
                 if (s.aliasesEnabled !== undefined) savedEnabled = s.aliasesEnabled;
+                if (s.aliasMacroDelay !== undefined) savedDelay = s.aliasMacroDelay;
             }
         } catch (e) {}
 
         if (savedEnabled !== undefined) {
             aliasesEnabledToggle.checked = savedEnabled;
         } else {
-            const configAliases = getConfigAliases();
-            const hasAny = workingAliases.length > 0 || configAliases.length > 0;
+            var configAliases = getConfigAliases();
+            var hasAny = workingAliases.length > 0 || configAliases.length > 0;
             aliasesEnabledToggle.checked = hasAny;
+        }
+
+        if (aliasMacroDelay) {
+            aliasMacroDelay.value = savedDelay || 500;
         }
     }
 }
 
 /* ── Event listeners ── */
 
-if (aliasAddBtn) aliasAddBtn.addEventListener("click", addAlias);
+if (aliasAddRegexBtn) aliasAddRegexBtn.addEventListener("click", addRegexAlias);
+if (aliasAddMacroBtn) aliasAddMacroBtn.addEventListener("click", addMacroAlias);
 if (aliasSaveBtn) aliasSaveBtn.addEventListener("click", saveAliasChanges);
 
-/* Save the enabled toggle to localStorage immediately when changed */
 if (aliasesEnabledToggle) {
     aliasesEnabledToggle.addEventListener("change", function() {
-        const gameName = gameSelect.value;
+        var gameName = gameSelect.value;
         if (!gameName) return;
         try {
-            const raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
-            const s = raw ? JSON.parse(raw) : {};
+            var raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
+            var s = raw ? JSON.parse(raw) : {};
             s.aliasesEnabled = aliasesEnabledToggle.checked;
             localStorage.setItem(GAME_STORAGE_PREFIX + gameName, JSON.stringify(s));
         } catch (e) {}

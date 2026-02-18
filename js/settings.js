@@ -83,13 +83,14 @@ export function saveGameSettings() {
     if (!gameName) return;
     try {
         /* Read existing stored data to preserve alias definitions */
-        let existingAliases, existingAliasesEnabled;
+        let existingAliases, existingAliasesEnabled, existingMacroDelay;
         try {
             const raw = localStorage.getItem(GAME_STORAGE_PREFIX + gameName);
             if (raw) {
                 const prev = JSON.parse(raw);
                 if (prev.aliases) existingAliases = prev.aliases;
                 if (prev.aliasesEnabled !== undefined) existingAliasesEnabled = prev.aliasesEnabled;
+                if (prev.aliasMacroDelay !== undefined) existingMacroDelay = prev.aliasMacroDelay;
             }
         } catch(e) {}
 
@@ -107,6 +108,7 @@ export function saveGameSettings() {
         /* Preserve alias data managed by the aliases module */
         if (existingAliases) s.aliases = existingAliases;
         if (existingAliasesEnabled !== undefined) s.aliasesEnabled = existingAliasesEnabled;
+        if (existingMacroDelay !== undefined) s.aliasMacroDelay = existingMacroDelay;
         localStorage.setItem(GAME_STORAGE_PREFIX + gameName, JSON.stringify(s));
     } catch(e) {}
 }
