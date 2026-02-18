@@ -12,6 +12,7 @@ export function setMode(mode) {
     state.keyMode = mode;
     modeIndicator.textContent = mode.toUpperCase();
     modeIndicator.className = mode;
+    modeIndicator.setAttribute("aria-label", "Current mode: " + mode.toUpperCase() + ". Click to toggle.");
     if (mode === "insert") {
         commandInput.focus();
         clearReadingCursor();

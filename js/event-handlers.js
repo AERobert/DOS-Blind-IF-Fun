@@ -1,4 +1,4 @@
-import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect,
+import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect, modeIndicator,
          devConToggle, devCom1Toggle, devCom2Toggle, devLpt1Toggle,
          devConDownloadBtn, devCom1DownloadBtn, devCom2DownloadBtn, devLpt1DownloadBtn,
          devConClearBtn, devCom1ClearBtn, devCom2ClearBtn, devLpt1ClearBtn,
@@ -237,6 +237,11 @@ commandInput.addEventListener("keyup", function(e) { e.stopPropagation(); });
 
 sendBtn.addEventListener("click", () => { if (!state.isReady) return; sendCommand(commandInput.value); commandInput.value = ""; commandInput.focus(); });
 enterOnlyBtn.addEventListener("click", () => { if (!state.isReady || !state.emulator) return; sendEnter(); commandInput.focus(); });
+
+/* Mode indicator toggle button — cycles between INSERT and READ */
+modeIndicator.addEventListener("click", function() {
+    setMode(state.keyMode === "insert" ? "read" : "insert");
+});
 
 speakScreenBtn.addEventListener("click", speakScreen);
 speakLastBtn.addEventListener("click", speakLast);

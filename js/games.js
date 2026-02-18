@@ -8,8 +8,13 @@ import { GLOBAL_STORAGE_KEY } from './constants.js';
  * Game Image Discovery & Presets
  * ═══════════════════════════════════════════ */
 
+/** Directories to search for game disk images (in order of preference). */
+const DISK_SEARCH_PATHS = ["gameDisks/", ""];
+
 /**
  * Populate the game selector by probing for each known .img file.
+ * Searches for images in DISK_SEARCH_PATHS so disks can live either
+ * in the gameDisks/ folder or the project root.
  * Uses HEAD requests so only a few bytes are exchanged per file.
  * Also adds any previously-remembered custom image filename.
  */
@@ -17,12 +22,18 @@ export async function populateGameSelect() {
     gameSelect.innerHTML = "";
     const found = [];
 
-    /* Probe each known image file */
+    /* Probe each known image file in each search path */
     for (const [filename, info] of Object.entries(KNOWN_GAMES)) {
-        try {
-            const resp = await fetch(filename, { method: "HEAD" });
-            if (resp.ok) found.push({ filename, label: info.label });
-        } catch(e) { /* file not present, skip */ }
+        for (const prefix of DISK_SEARCH_PATHS) {
+            try {
+                const url = prefix + filename;
+                const resp = await fetch(url, { method: "HEAD" });
+                if (resp.ok) {
+                    found.push({ filename, label: info.label, path: url });
+                    break; /* found — stop searching other paths */
+                }
+            } catch(e) { /* file not present at this path, try next */ }
+        }
     }
 
     if (found.length === 0) {
@@ -33,6 +44,7 @@ export async function populateGameSelect() {
         for (const g of found) {
             const o = document.createElement("option");
             o.value = g.filename;
+            o.dataset.path = g.path;
             o.textContent = g.label + " (" + g.filename + ")";
             gameSelect.appendChild(o);
         }
@@ -72,6 +84,16 @@ export function applyGamePreset() {
 
     /* Clear custom blob when switching to a known image */
     state.customFloppyBlob = null;
+}
+
+/**
+ * Return the URL path to the currently selected disk image.
+ * Resolves via the data-path attribute set during discovery,
+ * falling back to the raw filename.
+ */
+export function getSelectedDiskPath() {
+    const opt = gameSelect.selectedOptions[0];
+    return (opt && opt.dataset.path) ? opt.dataset.path : gameSelect.value;
 }
 
 /** Handle loading a custom .img file from the file picker */

@@ -122,14 +122,12 @@ pkgZipInput.addEventListener("change", function() {
             autoDetectDiskType();
 
             /* Auto-generate label and filename from zip name */
-            if (!pkgLabel.value) {
+            {
                 const zipBase = file.name.replace(/\.zip$/i, "");
                 pkgLabel.value = zipBase;
-            }
-            if (!pkgImgFilename.value) {
-                const zipBase = file.name.replace(/\.zip$/i, "").toLowerCase()
+                const safeName = zipBase.toLowerCase()
                     .replace(/[^a-z0-9_-]/g, "-").replace(/-+/g, "-");
-                pkgImgFilename.value = zipBase + ".img";
+                pkgImgFilename.value = safeName + ".img";
             }
 
             pkgBuildImgBtn.disabled = false;
