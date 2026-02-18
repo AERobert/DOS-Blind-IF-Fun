@@ -240,7 +240,8 @@ enterOnlyBtn.addEventListener("click", () => { if (!state.isReady || !state.emul
 
 /* Mode indicator toggle button — cycles between INSERT and READ */
 modeIndicator.addEventListener("click", function() {
-    setMode(state.keyMode === "insert" ? "read" : "insert");
+    var next = state.keyMode === "insert" ? "read" : "insert";
+    setMode(next);
 });
 
 speakScreenBtn.addEventListener("click", speakScreen);
