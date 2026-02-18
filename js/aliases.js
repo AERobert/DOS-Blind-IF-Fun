@@ -66,8 +66,13 @@ function getAllAliases() {
  * Returns the transformed string (or the original if aliases are disabled).
  */
 export function applyAliases(text) {
-    if (!aliasesEnabledToggle || !aliasesEnabledToggle.checked) return text;
+    if (!aliasesEnabledToggle || !aliasesEnabledToggle.checked) {
+        console.log("[aliases] disabled or toggle missing, toggle=", aliasesEnabledToggle,
+                    "checked=", aliasesEnabledToggle ? aliasesEnabledToggle.checked : "N/A");
+        return text;
+    }
     const aliases = getAllAliases();
+    const original = text;
     for (const alias of aliases) {
         try {
             let flags = '';
@@ -76,8 +81,13 @@ export function applyAliases(text) {
             const re = new RegExp(alias.pattern, flags);
             text = text.replace(re, alias.replace);
         } catch (e) {
-            /* Invalid regex pattern — skip this alias */
+            console.warn("[aliases] bad regex:", alias.pattern, e);
         }
+    }
+    if (text !== original) {
+        console.log("[aliases]", JSON.stringify(original), "\u2192", JSON.stringify(text));
+    } else {
+        console.log("[aliases] no match — input:", JSON.stringify(text), "aliases:", aliases.length);
     }
     return text;
 }
