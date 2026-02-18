@@ -4,6 +4,7 @@
 
 import { state, gameSelect, diskTypeSelect, autorunInput, singleKeyToggle, bootBtn, bootPromptBtn } from './state.js';
 import { KNOWN_GAMES } from './game-configs.js';
+import { getSelectedDiskPath } from './games.js';
 import { ROWS, COLS } from './constants.js';
 import { setStatus, enableInput, announce } from './ui-helpers.js';
 import { trace } from './trace.js';
@@ -39,7 +40,7 @@ export function bootEmulator(autoLaunch) {
     const isHDD = diskTypeSelect.value === "hdd";
     const diskConfig = state.customFloppyBlob
         ? { buffer: state.customFloppyBlob }
-        : { url: selectedImg };
+        : { url: getSelectedDiskPath() };
 
     const emulatorConfig = {
         wasm_path: "v86.wasm",

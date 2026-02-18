@@ -10,8 +10,16 @@ import { rowToString, stripBorderBoth } from './screen.js';
 /** Switch between insert and read modes */
 export function setMode(mode) {
     state.keyMode = mode;
-    modeIndicator.textContent = mode.toUpperCase();
-    modeIndicator.className = mode;
+
+    /* Update the mode indicator button FIRST — before any focus changes
+       or speech calls that could throw and prevent this from executing. */
+    var indicator = modeIndicator || document.getElementById("mode-indicator");
+    if (indicator) {
+        indicator.textContent = mode.toUpperCase();
+        indicator.className = mode;
+        indicator.setAttribute("aria-label", "Current mode: " + mode.toUpperCase() + ". Click to toggle.");
+    }
+
     if (mode === "insert") {
         commandInput.focus();
         clearReadingCursor();
