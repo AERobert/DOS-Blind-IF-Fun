@@ -44,6 +44,7 @@ export const state = {
     com2SpeechPending: [],       /* complete lines waiting to be spoken */
     com2SpeechTimer: null,       /* debounce timer for batching lines */
     com2MuteScreen: false,       /* cached flag: suppress screen speech */
+    com2Lines: [],               /* completed lines array for screen display */
 };
 
 /* ── DOM Element References ── */

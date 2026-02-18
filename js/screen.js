@@ -1,4 +1,4 @@
-import { state, screenEl, promptCharInput, skipDecorToggle, promptDepthSelect, speakAfterCmdToggle, autoSpeakToggle, transcriptReplaceScreenToggle, transcriptMuteScreenToggle, devCom2SpeakToggle, devCom2MuteScreenToggle } from './state.js';
+import { state, screenEl, promptCharInput, skipDecorToggle, promptDepthSelect, speakAfterCmdToggle, autoSpeakToggle, transcriptReplaceScreenToggle, transcriptMuteScreenToggle, devCom2SpeakToggle, devCom2MuteScreenToggle, devCom2ReplaceScreenToggle } from './state.js';
 import { ROWS, COLS, CP437, BOX_RE, BORDER_STRIP_RE, BORDER_STRIP_END_RE } from './constants.js';
 import { speak } from './speech.js';
 import { trace, traceTextPattern } from './trace.js';
@@ -41,8 +41,9 @@ export function rowToString(r) {
     /*
      * Screen content source priority:
      * 1. Transcript capture — only when "Replace screen" is checked
-     * 2. TextCap screen buffer (ANSI-positioned INT 10h text via serial)
-     * 3. VGA screen buffer (screen-put-char events in text mode)
+     * 2. COM2 transcript — only when COM2 capture + "Replace screen" is checked
+     * 3. TextCap screen buffer (ANSI-positioned INT 10h text via serial)
+     * 4. VGA screen buffer (screen-put-char events in text mode)
      */
     if (state.transcriptCapActive && transcriptReplaceScreenToggle.checked
         && state.transcriptLines.length > 0) {
@@ -50,6 +51,20 @@ export function rowToString(r) {
         const displayLines = state.transcriptLines.slice(startIdx);
         if (state.transcriptLineBuffer.length > 0) {
             displayLines.push(state.transcriptLineBuffer);
+        }
+        if (r < displayLines.length) {
+            return displayLines[r].padEnd(COLS).slice(0, COLS);
+        }
+        return " ".repeat(COLS);
+    }
+
+    /* Priority 2: COM2 replace screen — show last 25 lines of COM2 transcript */
+    if (state.deviceCapture.com2.enabled && devCom2ReplaceScreenToggle
+        && devCom2ReplaceScreenToggle.checked && state.com2Lines.length > 0) {
+        const startIdx = Math.max(0, state.com2Lines.length - ROWS);
+        const displayLines = state.com2Lines.slice(startIdx);
+        if (state.com2LineBuffer.length > 0) {
+            displayLines.push(state.com2LineBuffer);
         }
         if (r < displayLines.length) {
             return displayLines[r].padEnd(COLS).slice(0, COLS);
