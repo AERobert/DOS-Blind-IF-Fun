@@ -10,9 +10,6 @@ import { rowToString, stripBorderBoth } from './screen.js';
 /** Switch between insert and read modes */
 export function setMode(mode) {
     state.keyMode = mode;
-    modeIndicator.textContent = mode.toUpperCase();
-    modeIndicator.className = mode;
-    modeIndicator.setAttribute("aria-label", "Current mode: " + mode.toUpperCase() + ". Click to toggle.");
     if (mode === "insert") {
         commandInput.focus();
         clearReadingCursor();
@@ -27,6 +24,11 @@ export function setMode(mode) {
         updateReadingCursor();
         speakCurrentLine();
     }
+    /* Update the mode indicator LAST — after focus changes and speech
+       calls — so no side-effects can interfere with the visual state. */
+    modeIndicator.textContent = mode.toUpperCase();
+    modeIndicator.className = mode;
+    modeIndicator.setAttribute("aria-label", "Current mode: " + mode.toUpperCase() + ". Click to toggle.");
 }
 
 export function findFirstNonBlankLine() {
