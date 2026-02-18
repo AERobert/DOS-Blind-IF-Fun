@@ -1,7 +1,15 @@
-import { gameSelect, aliasSection, aliasesEnabledToggle, aliasTbody, aliasAddBtn, aliasSaveBtn } from './state.js';
+import { gameSelect } from './state.js';
 import { KNOWN_GAMES } from './game-configs.js';
 import { GAME_STORAGE_PREFIX } from './constants.js';
 import { announce } from './ui-helpers.js';
+
+/* Resolve alias DOM elements locally to avoid circular-import issues
+   (settings.js → aliases.js → state.js all load at startup) */
+const aliasSection = document.getElementById("alias-section");
+const aliasesEnabledToggle = document.getElementById("aliases-enabled-toggle");
+const aliasTbody = document.getElementById("alias-tbody");
+const aliasAddBtn = document.getElementById("alias-add-btn");
+const aliasSaveBtn = document.getElementById("alias-save-btn");
 
 /* ═══════════════════════════════════════════
  * Command Aliases

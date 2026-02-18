@@ -1,4 +1,4 @@
-import { state, voiceSelect, rateSlider, rateValue, pitchSlider, pitchValue, gameSelect, autorunInput, diskTypeSelect, autoSpeakToggle, speakAfterCmdToggle, skipDecorToggle, typingFeedbackSelect, promptCharInput, promptDepthSelect, singleKeyToggle, aliasesEnabledToggle } from './state.js';
+import { state, voiceSelect, rateSlider, rateValue, pitchSlider, pitchValue, gameSelect, autorunInput, diskTypeSelect, autoSpeakToggle, speakAfterCmdToggle, skipDecorToggle, typingFeedbackSelect, promptCharInput, promptDepthSelect, singleKeyToggle } from './state.js';
 import { STORAGE_KEY, GLOBAL_STORAGE_KEY, GAME_STORAGE_PREFIX, GAME_SETTING_DEFAULTS, COLLAPSE_PREFIX } from './constants.js';
 import { KNOWN_GAMES } from './game-configs.js';
 import { initAliasesForGame } from './aliases.js';
