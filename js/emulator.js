@@ -8,7 +8,7 @@ import { getSelectedDiskPath } from './games.js';
 import { ROWS, COLS } from './constants.js';
 import { setStatus, enableInput, announce } from './ui-helpers.js';
 import { trace } from './trace.js';
-import { checkFileIOMarker, traceTextPattern } from './trace.js';
+import { checkFileIOMarker, traceTextPattern, traceVerboseIOByte, traceVerboseScreenChar } from './trace.js';
 import { speak } from './speech.js';
 import { typeToDOS } from './commands.js';
 import { getDiskBytesCopy, writeFATFile, parseFATGeometry, replaceDiskImage } from './fat.js';
@@ -73,12 +73,15 @@ export function bootEmulator(autoLaunch) {
     state.emulator.add_listener("screen-put-char", function(d) {
         const row = d[0], col = d[1], ch = d[2];
         if (row >= 0 && row < ROWS && col >= 0 && col < COLS) state.screenBuffer[row][col] = ch;
+        traceVerboseScreenChar(row, col, ch);
     });
 
     /* Capture serial port output */
     let serialTraceBuf = "";
     let serialTraceTimer = null;
     state.emulator.add_listener("serial0-output-byte", function(byte) {
+        /* Verbose: log every individual byte */
+        traceVerboseIOByte("COM1", "OUT", byte);
         /* Feed device capture (captures ALL serial bytes before any filtering) */
         feedCom1Byte(byte);
         /* Feed LPT1/PRN capture too — must be before TextCap early-return so it
@@ -134,6 +137,7 @@ export function bootEmulator(autoLaunch) {
     /* Capture COM2 (serial1) — a clean channel not used by TextCap.
      * Games can write transcript to COM2 for interference-free capture. */
     state.emulator.add_listener("serial1-output-byte", function(byte) {
+        traceVerboseIOByte("COM2", "OUT", byte);
         feedCom2Byte(byte);
     });
 

@@ -1,4 +1,5 @@
 import { state, diskTypeSelect } from './state.js';
+import { traceVerboseDiskRead, traceVerboseDiskWrite } from './trace.js';
 
 /* ═══════════════════════════════════════════
  * Generic FAT File Manager (FAT12 + FAT16, floppy + HDD)
@@ -20,15 +21,20 @@ export function getDiskBytes() {
             let raw = null;
             dev.buffer.get_buffer(function(buf) { raw = buf; });
             if (!raw) return null;
-            return new Uint8Array(raw);
+            var result = new Uint8Array(raw);
+            traceVerboseDiskRead("getDiskBytes", "HDD image read, " + result.length + " bytes");
+            return result;
         } else {
             /* Floppy B: drive */
             const buf = state.emulator.get_disk_fdb();
             if (!buf) return null;
-            if (buf instanceof Uint8Array) return buf;
-            if (buf instanceof ArrayBuffer) return new Uint8Array(buf);
-            if (buf.buffer) return new Uint8Array(buf.buffer);
-            return null;
+            var result;
+            if (buf instanceof Uint8Array) result = buf;
+            else if (buf instanceof ArrayBuffer) result = new Uint8Array(buf);
+            else if (buf.buffer) result = new Uint8Array(buf.buffer);
+            else return null;
+            traceVerboseDiskRead("getDiskBytes", "Floppy image read, " + result.length + " bytes");
+            return result;
         }
     } catch(e) {
         console.error("getDiskBytes() failed:", e);
@@ -50,6 +56,8 @@ export async function replaceDiskImage(data) {
     if (!state.emulator) return false;
 
     const isHDD = diskTypeSelect.value === "hdd";
+    traceVerboseDiskWrite("replaceDiskImage",
+        (isHDD ? "HDD" : "Floppy") + " image write, " + data.byteLength + " bytes");
 
     try {
         if (isHDD) {
@@ -64,12 +72,14 @@ export async function replaceDiskImage(data) {
             if (oldBuf && oldBuf.view) {
                 oldBuf.view = new DataView(ab);
                 oldBuf.byteLength = ab.byteLength;
+                traceVerboseDiskWrite("replaceDiskImage", "HDD image replaced via direct view");
                 return true;
             }
 
             /* Fall back to set() method if available */
             if (oldBuf && typeof oldBuf.set === "function") {
                 oldBuf.set(0, data, function() {});
+                traceVerboseDiskWrite("replaceDiskImage", "HDD image replaced via set()");
                 return true;
             }
 
@@ -83,10 +93,12 @@ export async function replaceDiskImage(data) {
                 if (oldBuf && oldBuf.view) {
                     oldBuf.view = new DataView(ab);
                     oldBuf.byteLength = ab.byteLength;
+                    traceVerboseDiskWrite("replaceDiskImage", "Floppy image replaced via direct view");
                     return true;
                 }
                 if (oldBuf && typeof oldBuf.set === "function") {
                     oldBuf.set(0, data, function() {});
+                    traceVerboseDiskWrite("replaceDiskImage", "Floppy image replaced via set()");
                     return true;
                 }
             }
@@ -158,12 +170,20 @@ export function parseFATGeometry(img) {
 
     const bytesPerCluster = bytesPerSector * sectorsPerCluster;
 
-    return {
+    var geo = {
         partOffset, bytesPerSector, sectorsPerCluster, bytesPerCluster,
         reservedSectors, numFATs, rootDirEntries, totalSectors,
         sectorsPerFAT, fatStart, fat2Start, rootDirStart, dataStart,
         totalClusters, fatType
     };
+    traceVerboseDiskRead("parseFATGeometry",
+        "FAT" + fatType + " partOff=0x" + partOffset.toString(16) +
+        " bps=" + bytesPerSector + " spc=" + sectorsPerCluster +
+        " reserved=" + reservedSectors + " FATs=" + numFATs +
+        " rootEntries=" + rootDirEntries + " totalSec=" + totalSectors +
+        " fatStart=0x" + fatStart.toString(16) + " dataStart=0x" + dataStart.toString(16) +
+        " clusters=" + totalClusters);
+    return geo;
 }
 
 /**
@@ -229,17 +249,26 @@ export function isEOF(geo, val) {
  * Returns Uint8Array of file contents.
  */
 export function readFATFile(img, geo, file) {
+    traceVerboseDiskRead("readFATFile",
+        "'" + file.fullName + "' size=" + file.size + " startCluster=" + file.firstCluster);
     const data = new Uint8Array(file.size);
     let cluster = file.firstCluster;
     let written = 0;
+    let clusterCount = 0;
 
     while (cluster >= 2 && !isEOF(geo, cluster) && written < file.size) {
         const clusterOffset = geo.dataStart + (cluster - 2) * geo.bytesPerCluster;
         const toRead = Math.min(geo.bytesPerCluster, file.size - written);
+        traceVerboseDiskRead("readFATFile",
+            "  cluster #" + clusterCount + " =" + cluster +
+            " offset=0x" + clusterOffset.toString(16) + " read=" + toRead + " bytes");
         data.set(img.slice(clusterOffset, clusterOffset + toRead), written);
         written += toRead;
         cluster = readFATEntry(img, geo, cluster);
+        clusterCount++;
     }
+    traceVerboseDiskRead("readFATFile",
+        "  done: " + written + " bytes from " + clusterCount + " clusters");
     return data;
 }
 
@@ -272,6 +301,8 @@ function writeFATEntry(img, geo, cluster, val) {
  * Returns true on success.
  */
 export function writeFATFile(img, geo, fileName, fileData) {
+    traceVerboseDiskWrite("writeFATFile",
+        "'" + fileName + "' dataSize=" + fileData.length + " bytes");
     const eofMark = (geo.fatType === 12) ? 0xFFF : 0xFFFF;
 
     /* Parse 8.3 name */
@@ -285,7 +316,15 @@ export function writeFATFile(img, geo, fileName, fileData) {
     for (let c = 2; c <= geo.totalClusters + 1 && freeClusters.length < clustersNeeded; c++) {
         if (readFATEntry(img, geo, c) === 0x000) freeClusters.push(c);
     }
-    if (freeClusters.length < clustersNeeded) return false;
+    if (freeClusters.length < clustersNeeded) {
+        traceVerboseDiskWrite("writeFATFile",
+            "  FAILED: need " + clustersNeeded + " clusters, found " + freeClusters.length + " free");
+        return false;
+    }
+    traceVerboseDiskWrite("writeFATFile",
+        "  allocated " + freeClusters.length + " clusters: [" +
+        freeClusters.slice(0, 10).join(", ") +
+        (freeClusters.length > 10 ? ", ..." : "") + "]");
 
     /* Write data to clusters and build chain */
     for (let i = 0; i < freeClusters.length; i++) {
@@ -294,7 +333,12 @@ export function writeFATFile(img, geo, fileName, fileData) {
         const srcOff = i * geo.bytesPerCluster;
         const chunk = fileData.slice(srcOff, srcOff + geo.bytesPerCluster);
         img.set(new Uint8Array(chunk), off);
-        writeFATEntry(img, geo, c, (i < freeClusters.length - 1) ? freeClusters[i + 1] : eofMark);
+        var nextVal = (i < freeClusters.length - 1) ? freeClusters[i + 1] : eofMark;
+        writeFATEntry(img, geo, c, nextVal);
+        traceVerboseDiskWrite("writeFATFile",
+            "  cluster " + c + " offset=0x" + off.toString(16) +
+            " wrote=" + chunk.byteLength + " bytes, FAT->" +
+            (nextVal === eofMark ? "EOF" : nextVal));
     }
 
     /* Find or create directory entry */
@@ -308,10 +352,13 @@ export function writeFATFile(img, geo, fileName, fileData) {
         for (let c = 0; c < 11; c++) existName += String.fromCharCode(img[o + c]);
         if (existName === fn + fe) {
             /* Free old clusters first */
+            traceVerboseDiskWrite("writeFATFile",
+                "  overwriting existing file at dirEntry=0x" + o.toString(16));
             let oldC = img[o + 26] | (img[o + 27] << 8);
             while (oldC >= 2 && !isEOF(geo, oldC)) {
                 const next = readFATEntry(img, geo, oldC);
                 writeFATEntry(img, geo, oldC, 0x000);
+                traceVerboseDiskWrite("writeFATFile", "  freed old cluster " + oldC);
                 oldC = next;
             }
             dirOff = o;
@@ -326,7 +373,10 @@ export function writeFATFile(img, geo, fileName, fileData) {
             if (img[o] === 0x00 || img[o] === 0xE5) { dirOff = o; break; }
         }
     }
-    if (dirOff === -1) return false;
+    if (dirOff === -1) {
+        traceVerboseDiskWrite("writeFATFile", "  FAILED: no free directory entry");
+        return false;
+    }
 
     /* Write directory entry */
     for (let c = 0; c < 8; c++) img[dirOff + c] = fn.charCodeAt(c);
@@ -341,5 +391,8 @@ export function writeFATFile(img, geo, fileName, fileData) {
     img[dirOff + 30] = (sz >> 16) & 0xFF;
     img[dirOff + 31] = (sz >> 24) & 0xFF;
 
+    traceVerboseDiskWrite("writeFATFile",
+        "  dirEntry at 0x" + dirOff.toString(16) + " startCluster=" + freeClusters[0] +
+        " size=" + sz);
     return true;
 }
