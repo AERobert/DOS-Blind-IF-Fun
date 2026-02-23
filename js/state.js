@@ -31,6 +31,9 @@ export const state = {
     responseLog: [], responseNavIndex: -1,
     voices: [],
     traceEnabled: false, traceLog: [], traceStartTime: 0,
+    verboseTrace: false,         /* verbose trace-all mode (disk I/O, RAM, instructions) */
+    lastRamSnapshot: null,       /* Uint8Array snapshot for RAM diff detection */
+    ramSnapshotTimer: null,      /* periodic RAM snapshot interval */
     /* Device capture buffers */
     deviceCapture: {
         con:  { enabled: false, buffer: "", bytes: 0 },
@@ -123,6 +126,7 @@ export const traceToggleBtn = $("trace-toggle-btn");
 export const traceDownloadBtn = $("trace-download-btn");
 export const traceClearBtn = $("trace-clear-btn");
 export const traceStatus = $("trace-status");
+export const traceVerboseToggle = $("trace-verbose-toggle");
 export const traceFSTrackToggle = $("trace-fs-track-toggle");
 export const traceFSSnapBtn = $("trace-fs-snap-btn");
 export const traceFSDiffBtn = $("trace-fs-diff-btn");

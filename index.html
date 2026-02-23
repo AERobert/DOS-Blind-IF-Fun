@@ -555,6 +555,14 @@
         <p id="trace-status" style="margin:0.4rem 0 0;font-size:0.85rem;color:var(--text-secondary);">Idle</p>
         <div style="margin-top:0.6rem;border-top:1px solid var(--surface-border,#333);padding-top:0.5rem;">
             <label style="font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer;">
+                <input type="checkbox" id="trace-verbose-toggle">
+                <strong>Verbose trace-all</strong> — log every I/O port access, disk read/write, RAM changes, and CPU instructions
+            </label>
+            <p style="margin:0.2rem 0 0 1.4rem;font-size:0.8rem;color:var(--text-secondary);">
+                ⚠ Generates very large traces. Logs individual serial/screen bytes, every FAT read/write
+                operation with sector offsets, periodic RAM region diffs, and decoded x86 instruction state.
+            </p>
+            <label style="font-size:0.85rem;display:flex;align-items:center;gap:0.4rem;cursor:pointer;margin-top:0.4rem;">
                 <input type="checkbox" id="trace-fs-track-toggle">
                 Track filesystem changes (auto-diff every 5s + on file-I/O markers)
             </label>
