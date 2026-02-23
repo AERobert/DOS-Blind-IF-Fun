@@ -29,6 +29,7 @@ export const state = {
     customFloppyBlob: null,
     preloadFiles: [],
     responseLog: [], responseNavIndex: -1,
+    showHistoryTimestamps: false,
     voices: [],
     traceEnabled: false, traceLog: [], traceStartTime: 0,
     verboseTrace: false,         /* verbose trace-all mode (disk I/O, RAM, instructions) */
@@ -131,6 +132,8 @@ export const traceFSTrackToggle = $("trace-fs-track-toggle");
 export const traceFSSnapBtn = $("trace-fs-snap-btn");
 export const traceFSDiffBtn = $("trace-fs-diff-btn");
 export const histCopyBtn = $("hist-copy-btn");
+export const histClearBtn = $("hist-clear-btn");
+export const histTimestampsToggle = $("hist-timestamps-toggle");
 export const preloadFilesBtn = $("preload-files-btn");
 export const preloadFilesInput = $("preload-files-input");
 export const preloadFilesList = $("preload-files-list");

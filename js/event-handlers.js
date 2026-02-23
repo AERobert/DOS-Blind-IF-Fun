@@ -3,6 +3,10 @@ import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, sin
          devConDownloadBtn, devCom1DownloadBtn, devCom2DownloadBtn, devLpt1DownloadBtn,
          devConClearBtn, devCom1ClearBtn, devCom2ClearBtn, devLpt1ClearBtn,
          devDownloadAllBtn, devClearAllBtn } from './state.js';
+
+/* Resolve locally to avoid import-ordering issues */
+const histClearBtn = document.getElementById("hist-clear-btn");
+const histTimestampsToggle = document.getElementById("hist-timestamps-toggle");
 import { SCANCODES } from './constants.js';
 import { speakScreen, speakLast, speakNew } from './speech-actions.js';
 import { speak, stopSpeech } from './speech.js';
@@ -10,7 +14,7 @@ import { setMode, handleReadKey } from './reading-mode.js';
 import { setStatus, announce, formatSize } from './ui-helpers.js';
 import { bootEmulator } from './emulator.js';
 import { sendCommand, sendEnter } from './commands.js';
-import { navPrevResponse, navNextResponse } from './history.js';
+import { navPrevResponse, navNextResponse, clearHistory } from './history.js';
 import { refreshFileManager, uploadFiles, downloadFloppyImage } from './file-manager.js';
 import { saveState, restoreState } from './state-save.js';
 import { toggleRecording, downloadTranscript, clearTranscript, startTranscriptPoll, flushTranscriptFile, stopTranscriptPoll, restartTranscriptPoll, testReadTranscript, speakLastTranscript } from './transcript.js';
@@ -321,6 +325,18 @@ histCopyBtn.addEventListener("click", function() {
         /* Fallback for older browsers or permission denied */
         announce("Could not copy to clipboard.");
     });
+});
+
+/* Clear history */
+histClearBtn.addEventListener("click", function() {
+    clearHistory();
+    announce("History cleared.");
+});
+
+/* Toggle timestamps on history entries */
+histTimestampsToggle.addEventListener("change", function() {
+    state.showHistoryTimestamps = histTimestampsToggle.checked;
+    announce(state.showHistoryTimestamps ? "Timestamps enabled." : "Timestamps disabled.");
 });
 
 /* ═══════════════════════════════════════════
