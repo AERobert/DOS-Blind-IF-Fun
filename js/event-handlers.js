@@ -1,4 +1,4 @@
-import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceVerboseToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect, modeIndicator,
+import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceVerboseToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, histClearBtn, histTimestampsToggle, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect, modeIndicator,
          devConToggle, devCom1Toggle, devCom2Toggle, devLpt1Toggle,
          devConDownloadBtn, devCom1DownloadBtn, devCom2DownloadBtn, devLpt1DownloadBtn,
          devConClearBtn, devCom1ClearBtn, devCom2ClearBtn, devLpt1ClearBtn,
@@ -10,7 +10,7 @@ import { setMode, handleReadKey } from './reading-mode.js';
 import { setStatus, announce, formatSize } from './ui-helpers.js';
 import { bootEmulator } from './emulator.js';
 import { sendCommand, sendEnter } from './commands.js';
-import { navPrevResponse, navNextResponse } from './history.js';
+import { navPrevResponse, navNextResponse, clearHistory } from './history.js';
 import { refreshFileManager, uploadFiles, downloadFloppyImage } from './file-manager.js';
 import { saveState, restoreState } from './state-save.js';
 import { toggleRecording, downloadTranscript, clearTranscript, startTranscriptPoll, flushTranscriptFile, stopTranscriptPoll, restartTranscriptPoll, testReadTranscript, speakLastTranscript } from './transcript.js';
@@ -321,6 +321,18 @@ histCopyBtn.addEventListener("click", function() {
         /* Fallback for older browsers or permission denied */
         announce("Could not copy to clipboard.");
     });
+});
+
+/* Clear history */
+histClearBtn.addEventListener("click", function() {
+    clearHistory();
+    announce("History cleared.");
+});
+
+/* Toggle timestamps on history entries */
+histTimestampsToggle.addEventListener("change", function() {
+    state.showHistoryTimestamps = histTimestampsToggle.checked;
+    announce(state.showHistoryTimestamps ? "Timestamps enabled." : "Timestamps disabled.");
 });
 
 /* ═══════════════════════════════════════════
