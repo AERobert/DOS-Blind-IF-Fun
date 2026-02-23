@@ -1,8 +1,12 @@
-import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceVerboseToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, histClearBtn, histTimestampsToggle, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect, modeIndicator,
+import { state, bootBtn, bootPromptBtn, commandInput, sendBtn, enterOnlyBtn, singleKeyToggle, speakScreenBtn, speakLastBtn, speakNewBtn, stopSpeechBtn, testSpeechBtn, rateSlider, rateValue, pitchSlider, pitchValue, histPrevBtn, histNextBtn, fmRefreshBtn, fmUploadBtn, fmUploadInput, fmDlFloppyBtn, stateSaveBtn, stateRestoreBtn, stateRestoreInput, recordBtn, downloadTranscriptBtn, clearTranscriptBtn, transcriptWatchBtn, transcriptFlushBtn, transcriptDisconnectBtn, transcriptPollSpeedSelect, transcriptTestReadBtn, transcriptSpeakLastBtn, transcriptAutoFlushToggle, transcriptAutoFlushOptions, traceToggleBtn, traceDownloadBtn, traceClearBtn, traceFSTrackToggle, traceVerboseToggle, traceFSSnapBtn, traceFSDiffBtn, histCopyBtn, historyLog, preloadFilesBtn, preloadFilesInput, preloadFilesList, preloadFilesCount, typingFeedbackSelect, transcriptFlushDelay, transcriptFlushD1, transcriptFlushD2, transcriptFlushD3, transcriptFlushTotal, gameSelect, modeIndicator,
          devConToggle, devCom1Toggle, devCom2Toggle, devLpt1Toggle,
          devConDownloadBtn, devCom1DownloadBtn, devCom2DownloadBtn, devLpt1DownloadBtn,
          devConClearBtn, devCom1ClearBtn, devCom2ClearBtn, devLpt1ClearBtn,
          devDownloadAllBtn, devClearAllBtn } from './state.js';
+
+/* Resolve locally to avoid import-ordering issues */
+const histClearBtn = document.getElementById("hist-clear-btn");
+const histTimestampsToggle = document.getElementById("hist-timestamps-toggle");
 import { SCANCODES } from './constants.js';
 import { speakScreen, speakLast, speakNew } from './speech-actions.js';
 import { speak, stopSpeech } from './speech.js';
