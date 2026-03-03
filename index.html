@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Accessible DOS Text Adventure Player</title>
+    <title>Accessible Retro Text Adventure Player</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
 <div class="container">
     <header>
-        <h1>Accessible DOS Text Adventure Player</h1>
-        <p>Play DOS text adventures with speech, braille display, and VI-style screen reading</p>
+        <h1>Accessible Retro Text Adventure Player</h1>
+        <p>Play text adventures on DOS, Apple II, Commodore 64, and BBC Micro with speech and screen reading</p>
     </header>
 
     <!-- Setup -->
@@ -18,6 +18,15 @@
         <summary><h2>Setup</h2></summary>
         <div class="cpanel-body">
         <div class="panel-row">
+            <div class="field-group" style="min-width:180px;max-width:220px;">
+                <label for="platform-select">Platform</label>
+                <select id="platform-select">
+                    <option value="dos" selected>DOS (x86 / FreeDOS)</option>
+                    <option value="apple2">Apple II</option>
+                    <option value="c64">Commodore 64</option>
+                    <option value="bbc">BBC Micro</option>
+                </select>
+            </div>
             <div class="field-group" style="min-width:250px;">
                 <label for="game-select">Game Disk Image</label>
                 <select id="game-select"><option value="">Scanning for .img files...</option></select>
@@ -32,8 +41,12 @@
             <div class="field-group" style="flex:0;min-width:auto;">
                 <label>&nbsp;</label>
                 <button id="load-custom-img-btn" class="btn-secondary btn-sm">Load Custom .img...</button>
-                <input type="file" id="custom-img-input" style="display:none" accept=".img,.ima,.bin">
+                <input type="file" id="custom-img-input" style="display:none" accept=".img,.ima,.bin,.dsk,.do,.po,.woz,.nib,.d64,.t64,.prg,.ssd,.dsd,.uef">
             </div>
+        </div>
+        <!-- Platform info (shown when non-DOS platform selected) -->
+        <div id="platform-info" style="display:none;margin-top:0.5rem;padding:0.5rem;border:1px solid var(--accent,#4a90d9);border-radius:4px;font-size:0.85rem;">
+            <div id="platform-info-text"></div>
         </div>
         <div class="panel-row" style="margin-top:0.75rem;">
             <div class="field-group" style="min-width:200px;">
@@ -630,6 +643,15 @@
         <p><strong>Transcript capture</strong>: for the cleanest game text, type <code>SCRIPT filename</code> in the game, then click "Watch File" in the Transcript Capture panel. The player polls the game disk and reads the transcript file directly from the FAT cluster chain. Due to DOS C runtime buffering, game text only appears on disk when the internal buffer flushes (usually on file close). Press <kbd>F12</kbd> or click "Flush &amp; Re-open" to automatically send <code>script off</code> (flushing the buffer to disk), read the new data, and re-open the transcript. Adjust polling speed from 0.5s to 5s in the panel. Click "Stop" to return to normal screen capture.</p>
         <p><strong>Adding new games</strong>: use the "Package New Game" panel to upload a ZIP of game files. It creates a disk image (floppy or HDD) and a config .js file. Place the .img in the same folder as this HTML file, put the .js file in <code>js/games/</code>, and add an import line for it in <code>js/game-configs.js</code>. Or use "Load Custom .img" to load any disk image at runtime without a config file.</p>
         <p><strong>DOS Device Monitor</strong>: monitors output from DOS special devices and captures it to downloadable files. For real-time transcript capture without file flushing, enable <strong>COM2</strong> monitoring and type <code>script COM2</code> in the game. COM2 is a clean serial port not used by TextCap, so transcript text arrives without screen mirroring interference. COM1 is used by TextCap for screen mirroring in graphics mode games, so it carries mixed data. CON captures screen text changes. LPT1/PRN shows ANSI-stripped serial text.</p>
+        <h3>Multi-Platform Support</h3>
+        <p>This player supports text adventures on four classic platforms:</p>
+        <ul>
+            <li><strong>DOS (x86)</strong> — Full DOS emulation via v86. Boots FreeDOS, loads game disk images (.img). The primary and most complete platform.</li>
+            <li><strong>Apple II</strong> — 40x24 text screen. Reads text from screen memory at $0400-$07FF. Supports .dsk, .do, .po, .woz, .nib disk images. Emulator: apple2js. Classic games: Zork, Hitchhiker's Guide, Planetfall.</li>
+            <li><strong>Commodore 64</strong> — 40x25 text screen. Reads PETSCII screen codes from $0400-$07E7. Supports .d64, .t64, .prg disk images. Emulator: Viciious or VICE.js. Classic games: Zork, Hitchhiker's Guide, The Lurking Horror.</li>
+            <li><strong>BBC Micro</strong> — Mode 7 teletext (40x25) or bitmap text modes. Reads from $7C00 (Mode 7) or hooks OSWRCH ($FFEE) for bitmap modes. Supports .ssd, .dsd, .uef disk images. Emulator: jsbeeb. Classic games: Colossal Adventure, Acheton, Philosopher's Quest.</li>
+        </ul>
+        <p>Non-DOS platforms require their emulator library to be loaded separately. Without the library, a demo mode runs showing the text extraction pipeline. Game disk images (.dsk, .d64, .ssd etc.) must be obtained separately — many classic text adventures are freely available from the IF Archive (<code>ifarchive.org</code>) and Internet Archive (<code>archive.org</code>).</p>
     </details>
 </div>
 

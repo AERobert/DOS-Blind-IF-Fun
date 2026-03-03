@@ -18,7 +18,34 @@ import { saveGameSettings } from './settings.js';
 import { getCheckedStoredFileData } from './file-storage.js';
 import { feedCom1Byte, feedLpt1Byte, feedCom2Byte } from './devices.js';
 
+/* ── Non-DOS platform emulators ── */
+import { createApple2Emulator, APPLE2_INFO } from './platforms/apple2-emu.js';
+import { createC64Emulator, C64_INFO } from './platforms/c64-emu.js';
+import { createBBCEmulator, BBC_INFO } from './platforms/bbc-emu.js';
+
+/** Get the current platform from the selector dropdown. */
+function getSelectedPlatform() {
+    const el = document.getElementById("platform-select");
+    return el ? el.value : "dos";
+}
+
+/**
+ * Boot the selected platform's emulator.
+ * For DOS: uses the original v86 boot path (unchanged).
+ * For Apple II / C64 / BBC: creates a platform adapter (EmulatorShim)
+ * that provides v86-compatible events so screen.js/commands.js work as-is.
+ */
 export function bootEmulator(autoLaunch) {
+    const platform = getSelectedPlatform();
+    state.currentPlatform = platform;
+
+    if (platform !== "dos") {
+        bootPlatformEmulator(platform, autoLaunch);
+        return;
+    }
+
+    /* ────── Original DOS boot path (unchanged) ────── */
+
     const Ctor = window.V86Starter || window.V86;
     if (!Ctor) {
         setStatus("error", "v86 not loaded. Serve via HTTP (use start.command).");
@@ -296,3 +323,114 @@ export function bootEmulator(autoLaunch) {
         }
     }, 3000);
 }
+
+/* ═══════════════════════════════════════════
+ * Non-DOS Platform Boot
+ *
+ * Creates a platform-specific EmulatorShim that implements the v86
+ * API (add_listener, keyboard_send_text, keyboard_send_scancodes).
+ * The shim polls the emulator's screen memory and emits
+ * "screen-put-char" events, so screen.js works without modification.
+ * ═══════════════════════════════════════════ */
+
+const PLATFORM_FACTORIES = {
+    apple2: createApple2Emulator,
+    c64:    createC64Emulator,
+    bbc:    createBBCEmulator,
+};
+
+const PLATFORM_NAMES = {
+    apple2: "Apple II",
+    c64:    "Commodore 64",
+    bbc:    "BBC Micro",
+};
+
+const PLATFORM_INFO = {
+    apple2: APPLE2_INFO,
+    c64:    C64_INFO,
+    bbc:    BBC_INFO,
+};
+
+async function bootPlatformEmulator(platform, autoLaunch) {
+    const factory = PLATFORM_FACTORIES[platform];
+    if (!factory) {
+        setStatus("error", "Unknown platform: " + platform);
+        return;
+    }
+
+    const platformName = PLATFORM_NAMES[platform] || platform;
+    setStatus("loading", "Starting " + platformName + " emulator...");
+    bootBtn.disabled = true; bootPromptBtn.disabled = true;
+    initBuffer(); initScreenDOM();
+
+    /* Create the platform adapter (EmulatorShim subclass) */
+    const adapter = factory();
+
+    /* Build config from game selection */
+    const selectedImg = gameSelect.value;
+    const config = {
+        diskUrl: selectedImg ? getSelectedDiskPath() : null,
+        diskBuffer: state.customFloppyBlob || null,
+    };
+
+    /* If there's a game preset, merge its config */
+    const preset = KNOWN_GAMES[selectedImg];
+    if (preset) {
+        Object.assign(config, preset);
+    }
+
+    try {
+        await adapter.boot(config);
+    } catch (err) {
+        setStatus("error", platformName + " emulator failed: " + err.message);
+        bootBtn.disabled = false; bootPromptBtn.disabled = false;
+        return;
+    }
+
+    /*
+     * Store the adapter as state.emulator.
+     * Because the adapter implements the v86 API (add_listener,
+     * keyboard_send_text, keyboard_send_scancodes), the existing
+     * screen.js, commands.js, etc. work without modification.
+     */
+    state.emulator = adapter;
+
+    /*
+     * The adapter already has a screen-put-char listener pipeline set up
+     * (via _startScreenPoll).  We still need to hook it into our screen
+     * buffer so refreshScreen() can read the characters.
+     */
+    adapter.add_listener("screen-put-char", function(d) {
+        const row = d[0], col = d[1], ch = d[2];
+        if (row >= 0 && row < ROWS && col >= 0 && col < COLS) {
+            state.screenBuffer[row][col] = ch;
+        }
+    });
+
+    /* Start screen refresh timer (same as DOS path) */
+    state.refreshTimer = setInterval(refreshScreen, 200);
+
+    /* Enable input immediately — no DOS boot sequence to wait for */
+    state.pendingChanges = []; state.lastResponseLines = [];
+    enableInput();
+
+    /* Collapse setup panel */
+    var setupPanel = document.getElementById("section-setup");
+    if (setupPanel) setupPanel.open = false;
+
+    /* Announce platform */
+    const info = PLATFORM_INFO[platform];
+    const screenSize = info ? (info.screenCols + "x" + info.screenRows) : "";
+    setStatus("ready", platformName + " ready. " + screenSize + " text screen. Type commands below.");
+    announce(platformName + " emulator started. " +
+        (adapter._demoMode
+            ? "Running in demo mode — emulator library not loaded. Text pipeline is active for testing."
+            : "Emulator running. Game text is accessible via screen reader."));
+
+    trace("BOOT", platformName + " emulator booted" +
+        (adapter._demoMode ? " (DEMO MODE)" : "") +
+        " — screen: " + (info ? info.screenCols : "?") + "x" + (info ? info.screenRows : "?"));
+}
+
+/** Export platform metadata for use by other modules. */
+export { PLATFORM_INFO, PLATFORM_NAMES };
