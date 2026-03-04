@@ -50,6 +50,11 @@ import bbcAcheton from './games/bbc-acheton.js';
 import bbcPhilosopher from './games/bbc-philosopher.js';
 import bbcGiantKiller from './games/bbc-giant-killer.js';
 import bbcQuondam from './games/bbc-quondam.js';
+import bbcCountdownDoom from './games/bbc-countdown-doom.js';
+import bbcReturnDoom from './games/bbc-return-doom.js';
+import bbcLastDaysDoom from './games/bbc-last-days-doom.js';
+import bbcAvon from './games/bbc-avon.js';
+import bbcHamil from './games/bbc-hamil.js';
 
 const gameList = [
     /* DOS */
@@ -60,6 +65,7 @@ const gameList = [
     c64Zork1, c64Hitchhiker, c64LurkingHorror,
     /* BBC Micro */
     bbcColossal, bbcAcheton, bbcPhilosopher, bbcGiantKiller, bbcQuondam,
+    bbcCountdownDoom, bbcReturnDoom, bbcLastDaysDoom, bbcAvon, bbcHamil,
 ];
 
 export const KNOWN_GAMES = {};

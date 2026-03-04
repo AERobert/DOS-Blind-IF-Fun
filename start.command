@@ -102,6 +102,21 @@ download "https://bbcmicro.co.uk/gameimg/discs/2021/Disc999-ACHETONFin.ssd" \
 download "https://bbcmicro.co.uk/gameimg/discs/2311/Disc999-PhilQuestFIN.ssd" \
          "gameDisks/bbc/PhilosophersQuest.ssd"
 
+download "https://bbcmicro.co.uk/gameimg/discs/2062/Disc999-CountdownToDoomTopologika.ssd" \
+         "gameDisks/bbc/CountdownToDoom.ssd"
+
+download "https://bbcmicro.co.uk/gameimg/discs/2202/Disc999-ReturnToDoomTopologika.ssd" \
+         "gameDisks/bbc/ReturnToDoom.ssd"
+
+download "https://bbcmicro.co.uk/gameimg/discs/2150/Disc999-LastDaysOfDoomTopologika.ssd" \
+         "gameDisks/bbc/LastDaysOfDoom.ssd"
+
+download "https://bbcmicro.co.uk/gameimg/discs/2325/Disc999-Avon.ssd" \
+         "gameDisks/bbc/Avon.ssd"
+
+download "https://bbcmicro.co.uk/gameimg/discs/2278/Disc999-KingdomOfHamilTopologika.ssd" \
+         "gameDisks/bbc/KingdomOfHamil.ssd"
+
 # ── Apple II games (from archive.org) ────────────────────────────
 
 download "https://archive.org/download/a2_Zork_I_The_Great_Underground_Empire_1980_Infocom/Zork%20I%20-%20The%20Great%20Underground%20Empire%20%281980%29%28Infocom%29.dsk" \
