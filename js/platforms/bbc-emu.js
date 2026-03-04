@@ -121,30 +121,103 @@ export class BBCEmulator extends EmulatorShim {
     /* ── Boot ── */
 
     async _boot(config) {
-        const JsbeebLib = window.jsbeeb || window.Jsbeeb || window.BBCMicro;
+        /*
+         * Try to find a BBC Micro emulator library.
+         *
+         * Primary: jsbeeb library (window.JsbeebLib)
+         *   JsbeebLib.create(options) → emulator with:
+         *     emu.processor                — Cpu6502 instance
+         *     emu.readMem(addr)            — read any memory address
+         *     emu.keyDown(code, shift)     — press a key
+         *     emu.keyUp(code)              — release a key
+         *     emu.loadDisc(drive, name, data) — load disc image
+         *
+         * ROM files served from lib/jsbeeb/roms/ (OS, BASIC, DFS).
+         */
+        const JsbeebLib = window.JsbeebLib;
+        const GenericLib = window.jsbeeb || window.Jsbeeb || window.BBCMicro;
 
-        if (JsbeebLib) {
-            await this._bootReal(JsbeebLib, config);
+        if (JsbeebLib && typeof JsbeebLib.create === "function") {
+            await this._bootJsbeeb(JsbeebLib, config);
+        } else if (GenericLib) {
+            await this._bootGeneric(GenericLib, config);
         } else {
             console.warn("BBC Micro emulator library (jsbeeb) not found — running in demo mode.");
-            console.info(
-                "To use a real emulator, include jsbeeb:\n" +
-                "  https://github.com/mattgodbolt/jsbeeb\n" +
-                "  or load a compatible BBC Micro emulator."
-            );
             this._bootDemo(config);
         }
     }
 
-    async _bootReal(Lib, config) {
+    /**
+     * Boot using the jsbeeb library (Matt Godbolt's BBC Micro emulator).
+     * ROM files (OS, BASIC, DFS) must be served from lib/jsbeeb/roms/.
+     */
+    async _bootJsbeeb(Lib, config) {
+        console.log("Booting jsbeeb BBC Micro emulator...");
+
+        /* Get or create a canvas */
+        const container = document.getElementById("v86-screen-container");
+        this._canvas = container ? container.querySelector("canvas") : null;
+        if (!this._canvas && container) {
+            this._canvas = document.createElement("canvas");
+            this._canvas.width = 896;
+            this._canvas.height = 560;
+            container.appendChild(this._canvas);
+        }
+
+        try {
+            const bbcEmu = await Lib.create({
+                model: config.model || "B-DFS1.2",
+                canvas: this._canvas,
+            });
+
+            this._emu = bbcEmu;
+            this._cpu = bbcEmu.processor;
+
+            /* Set up memory reading via the processor */
+            if (this._cpu && typeof this._cpu.readmem === "function") {
+                /* readmem is the jsbeeb method for reading memory */
+            }
+
+            /* Set up shadow buffer for bitmap modes */
+            this._setupShadowBuffer();
+
+            /* Start the emulator */
+            if (bbcEmu.start) bbcEmu.start();
+
+            /* Set up OSWRCH interception for bitmap modes */
+            this._setupOswrchHook();
+
+            /* Load disc if provided */
+            if (config.diskUrl && !config.diskBuffer) {
+                try {
+                    const resp = await fetch(config.diskUrl);
+                    if (resp.ok) {
+                        config.diskBuffer = await resp.arrayBuffer();
+                    }
+                } catch(e) {
+                    console.warn("Could not fetch disc image:", config.diskUrl, e);
+                }
+            }
+
+            if (config.diskBuffer && bbcEmu.loadDisc) {
+                const name = config.filename || "game.ssd";
+                bbcEmu.loadDisc(0, name, new Uint8Array(config.diskBuffer));
+            }
+
+            console.log("jsbeeb BBC Micro ready — Mode 7 text at $7C00");
+        } catch(err) {
+            console.warn("jsbeeb init failed, falling back to demo:", err);
+            this._bootDemo(config);
+        }
+    }
+
+    async _bootGeneric(Lib, config) {
         const container = document.getElementById("v86-screen-container");
         this._canvas = container ? container.querySelector("canvas") : null;
 
         const emuConfig = {
             canvas: this._canvas,
-            model: config.model || "B",  /* Model B is the classic */
-            rom: config.romUrl || "os12.rom",
-            basicRom: config.basicRom || "basic2.rom",
+            model: config.model || "B",
             disk: config.diskUrl || config.diskBuffer,
         };
 
@@ -158,20 +231,10 @@ export class BBCEmulator extends EmulatorShim {
 
         if (this._emu) {
             this._cpu = this._emu.cpu || this._emu._6502 || this._emu.processor || null;
-
-            /*
-             * jsbeeb (v1.4.0+) exposes a MachineSession object with
-             * keyDown()/keyUp() methods for direct keyboard injection.
-             */
             this._machineSession = this._emu.machineSession || this._emu.session || null;
-
-            /* Try to detect the current mode and set up text extraction */
             this._setupShadowBuffer();
-
             if (this._emu.start) this._emu.start();
             if (this._emu.run) this._emu.run();
-
-            /* Set up OSWRCH interception for bitmap modes */
             this._setupOswrchHook();
         }
     }
@@ -386,16 +449,18 @@ export class BBCEmulator extends EmulatorShim {
 
         /*
          * Input priority:
-         * 1. jsbeeb MachineSession.keyDown/keyUp (v1.4.0+) — direct VIA injection
-         * 2. jsbeeb handler.keyDown — DOM-style event dispatch
-         * 3. System VIA keyboard matrix
-         * 4. Generic queue/type methods
+         * 1. jsbeeb library API — keyDown/keyUp on the emulator wrapper
+         * 2. jsbeeb sysvia — direct VIA keyboard matrix
+         * 3. Generic queue/type methods
          */
-        if (this._machineSession && typeof this._machineSession.keyDown === "function") {
-            this._machineSession.keyDown(code);
-            setTimeout(() => this._machineSession.keyUp(code), 50);
+        if (this._emu.keyDown && typeof this._emu.keyDown === "function") {
+            this._emu.keyDown(code, false);
+            setTimeout(() => this._emu.keyUp(code), 50);
+        } else if (this._cpu && this._cpu.sysvia &&
+                   typeof this._cpu.sysvia.keyDown === "function") {
+            this._cpu.sysvia.keyDown(code, false);
+            setTimeout(() => this._cpu.sysvia.keyUp(code), 50);
         } else if (this._emu.handler && this._emu.handler.keyDown) {
-            /* jsbeeb uses DOM key events internally */
             this._emu.handler.keyDown({
                 which: code, preventDefault() {}, key: ch, shiftKey: false
             });
@@ -404,9 +469,6 @@ export class BBCEmulator extends EmulatorShim {
                     which: code, preventDefault() {}, key: ch, shiftKey: false
                 });
             }, 50);
-        } else if (this._emu.sysvia) {
-            /* Direct VIA keyboard matrix manipulation */
-            this._pressKeyVia(ch);
         } else if (this._emu.queueKey) {
             this._emu.queueKey(code);
         } else if (this._emu.type) {
@@ -424,9 +486,13 @@ export class BBCEmulator extends EmulatorShim {
 
         const code = KEY_MAP[name];
         if (code !== undefined) {
-            if (this._machineSession && typeof this._machineSession.keyDown === "function") {
-                this._machineSession.keyDown(code);
-                setTimeout(() => this._machineSession.keyUp(code), 50);
+            if (this._emu.keyDown && typeof this._emu.keyDown === "function") {
+                this._emu.keyDown(code, name === "Backspace" || false);
+                setTimeout(() => this._emu.keyUp(code), 50);
+            } else if (this._cpu && this._cpu.sysvia &&
+                       typeof this._cpu.sysvia.keyDown === "function") {
+                this._cpu.sysvia.keyDown(code, false);
+                setTimeout(() => this._cpu.sysvia.keyUp(code), 50);
             } else if (this._emu.handler && this._emu.handler.keyDown) {
                 this._emu.handler.keyDown({
                     which: code, preventDefault() {}, key: name, shiftKey: false

@@ -95,6 +95,8 @@ export class Apple2Emulator extends EmulatorShim {
     constructor() {
         super();
         this._emu = null;       /* reference to the actual apple2js instance */
+        this._io = null;        /* apple2js I/O object (keyboard, slots) */
+        this._disk2 = null;     /* DiskII card instance */
         this._mem = null;       /* direct memory array (Uint8Array or accessor) */
         this._canvas = null;
         this._demoMode = false;
@@ -111,51 +113,119 @@ export class Apple2Emulator extends EmulatorShim {
     async _boot(config) {
         /*
          * Try to find an Apple II emulator library.
-         * apple2js exposes a global  Apple2  or is importable as a module.
+         *
+         * Primary: apple2js UMD library (window.Apple2Lib)
+         *   Apple2Lib.Apple2(options) → apple2 instance with:
+         *     apple2.ready              — Promise that resolves when ROMs loaded
+         *     apple2.getIO()            — keyboard: io.keyDown(ascii), io.setKeyBuffer(str)
+         *     apple2.getMMU()           — memory:   mmu.read(page, offset)
+         *     apple2.getCPU()           — CPU access
+         *     apple2.run()              — start execution
+         *
+         * All Apple II ROMs (system + character) are bundled in the library.
          */
+        const Apple2Lib = window.Apple2Lib;
         const AppleLib = window.Apple2 || window.apple2js;
 
-        if (AppleLib && typeof AppleLib === "function") {
-            await this._bootReal(AppleLib, config);
-        } else if (AppleLib && AppleLib.create) {
-            this._emu = await AppleLib.create(config);
-            this._mem = this._emu.memory || this._emu.ram;
+        if (Apple2Lib && Apple2Lib.Apple2) {
+            await this._bootApple2js(Apple2Lib, config);
+        } else if (AppleLib && typeof AppleLib === "function") {
+            await this._bootGeneric(AppleLib, config);
         } else {
             console.warn("Apple II emulator library not found — running in demo mode.");
-            console.info(
-                "To use a real emulator, include apple2js:\n" +
-                "  <script src=\"apple2js/dist/apple2.js\"></script>\n" +
-                "  or load a compatible Apple II emulator that exposes window.Apple2"
-            );
             this._bootDemo(config);
         }
     }
 
-    async _bootReal(Ctor, config) {
+    /**
+     * Boot using the apple2js library (Will Scullin's emulator).
+     * ROMs are built into the bundle — no external files needed.
+     */
+    async _bootApple2js(Lib, config) {
+        console.log("Booting apple2js Apple IIe emulator...");
+
+        /* Get or create a canvas for the emulator */
+        const container = document.getElementById("v86-screen-container");
+        this._canvas = container ? container.querySelector("canvas") : null;
+        if (!this._canvas && container) {
+            this._canvas = document.createElement("canvas");
+            this._canvas.width = 560;
+            this._canvas.height = 384;
+            container.appendChild(this._canvas);
+        }
+
+        /* Create the Apple IIe emulator */
+        const options = {
+            canvas: this._canvas,
+            rom: "apple2enh",           /* Enhanced Apple IIe */
+            characterRom: "apple2enh_char",
+            e: true,
+            enhanced: true,
+            gl: false,                  /* Use 2D canvas (more compatible) */
+            tick: () => {},             /* No UI update callback needed */
+        };
+
+        try {
+            this._emu = new Lib.Apple2(options);
+            await this._emu.ready;
+        } catch(err) {
+            console.warn("apple2js init failed, falling back to demo:", err);
+            this._bootDemo(config);
+            return;
+        }
+
+        /* Get API references */
+        const io = this._emu.getIO();
+        const mmu = this._emu.getMMU();
+
+        /* Set up memory accessor via MMU */
+        if (mmu && typeof mmu.read === "function") {
+            this._mem = {
+                read: addr => mmu.read(addr >> 8, addr & 0xFF)
+            };
+        }
+
+        /* Set up keyboard buffer */
+        if (io && typeof io.setKeyBuffer === "function") {
+            this._keyBuffer = str => io.setKeyBuffer(str);
+        }
+
+        /* Store IO reference for keyboard input */
+        this._io = io;
+
+        /* Optionally set up DiskII card for disk loading */
+        if (Lib.DiskII && io) {
+            try {
+                const driveLights = { driveLight: () => {}, dirty: () => {} };
+                this._disk2 = new Lib.DiskII(io, driveLights);
+                io.setSlot(6, this._disk2);
+            } catch(e) {
+                console.warn("DiskII setup failed:", e);
+            }
+        }
+
+        /* Start the emulator */
+        this._emu.run();
+        console.log("apple2js Apple IIe ready — MMU for text at $0400, keyboard via IO");
+    }
+
+    async _bootGeneric(Ctor, config) {
         const container = document.getElementById("v86-screen-container");
         this._canvas = container ? container.querySelector("canvas") : null;
 
-        /* apple2js typically needs a config with ROM paths, disk image, etc. */
         const emuConfig = {
             canvas: this._canvas,
             rom: config.rom || "apple2e.rom",
             disk: config.diskUrl || config.diskBuffer,
-            enhanced: true,  /* Apple IIe enhanced (supports lowercase) */
+            enhanced: true,
         };
 
         if (typeof Ctor === "function") {
             this._emu = new Ctor(emuConfig);
         }
 
-        /*
-         * Get memory accessor.  Different emulator builds expose this differently:
-         *   - apple2js: emu.mmu.read(page, offset) — page = addr >> 8, offset = addr & 0xFF
-         *   - apple2ts: memGet(addr)
-         *   - generic:  emu.ram (Uint8Array) or emu.cpu.read(addr)
-         */
         if (this._emu) {
             if (this._emu.mmu && typeof this._emu.mmu.read === "function") {
-                /* apple2js style: read(page, offset) */
                 this._mem = {
                     read: addr => this._emu.mmu.read(addr >> 8, addr & 0xFF)
                 };
@@ -166,19 +236,6 @@ export class Apple2Emulator extends EmulatorShim {
                 }
             }
 
-            /*
-             * apple2js exposes getText() on its video modes object for
-             * direct text-screen extraction.  If available, use it as a
-             * fast path instead of reading memory byte-by-byte.
-             */
-            if (this._emu.video && typeof this._emu.video.getText === "function") {
-                this._getText = () => this._emu.video.getText();
-            }
-
-            /*
-             * apple2js exposes setKeyBuffer(str) on the I/O object for
-             * buffered keyboard input.  Much cleaner than individual key events.
-             */
             if (this._emu.io && typeof this._emu.io.setKeyBuffer === "function") {
                 this._keyBuffer = str => this._emu.io.setKeyBuffer(str);
             }
@@ -260,26 +317,21 @@ export class Apple2Emulator extends EmulatorShim {
         if (!this._emu) return;
 
         const code = ch.charCodeAt(0);
+
         /*
-         * Apple II keyboard: high bit set means key is ready.
-         * The CPU polls $C000 (bit 7 = data ready, bits 0-6 = ASCII).
-         * Reading $C010 clears the strobe.
-         *
          * Priority of input methods:
          * 1. apple2js io.setKeyBuffer() — buffers an entire string
          * 2. apple2js io.keyDown(ascii) — single key latch
          * 3. Generic keyboard handler
-         * 4. Direct memory latch at $C000
          */
         if (this._keyBuffer) {
-            /* setKeyBuffer auto-converts \n to \r for Apple II */
             this._keyBuffer(ch);
+        } else if (this._io && typeof this._io.keyDown === "function") {
+            this._io.keyDown(code);
         } else if (this._emu.io && typeof this._emu.io.keyDown === "function") {
             this._emu.io.keyDown(code);
         } else if (this._emu.keyboard && this._emu.keyboard.keyDown) {
             this._emu.keyboard.keyDown({ key: ch, keyCode: code });
-        } else if (this._emu.setKeyData) {
-            this._emu.setKeyData(code | 0x80);
         } else if (this._emu.type) {
             this._emu.type(ch);
         }
@@ -297,10 +349,10 @@ export class Apple2Emulator extends EmulatorShim {
         if (code !== undefined) {
             if (this._keyBuffer && name === "Enter") {
                 this._keyBuffer("\r");  /* Apple II uses CR for Return */
+            } else if (this._io && typeof this._io.keyDown === "function") {
+                this._io.keyDown(code);
             } else if (this._emu.io && typeof this._emu.io.keyDown === "function") {
                 this._emu.io.keyDown(code);
-            } else if (this._emu.setKeyData) {
-                this._emu.setKeyData(code | 0x80);
             } else if (this._emu.keyboard && this._emu.keyboard.keyDown) {
                 this._emu.keyboard.keyDown({ key: name, keyCode: code });
             }

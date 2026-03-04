@@ -96,6 +96,7 @@ export class C64Emulator extends EmulatorShim {
     constructor() {
         super();
         this._emu = null;       /* reference to the actual C64 emulator */
+        this._c64 = null;       /* Viciious c64 object (if using Viciious) */
         this._mem = null;       /* memory accessor */
         this._canvas = null;
         this._demoMode = false;
@@ -111,55 +112,79 @@ export class C64Emulator extends EmulatorShim {
 
     async _boot(config) {
         /*
-         * Try to find a C64 emulator library.  We support multiple emulators:
+         * Try to find a C64 emulator library.
          *
-         * 1. Viciious  — Pure JS, public domain, ideal for tinkering
-         *    (https://github.com/luxocrates/viciious)
+         * Primary: Viciious (pure JS, public domain, ROMs built in)
+         *   window.ViciousC64.create() → c64 object with:
+         *     c64.ram.readRam(addr)     — read any memory address
+         *     c64.runloop.type(str)     — inject text via KERNAL keyboard buffer
+         *     c64.runloop.run()         — start execution
+         *     c64.cias.state.keyMatrix  — 8-byte keyboard matrix
          *
-         * 2. VICE.js   — VICE compiled to Emscripten/WASM, full accuracy
-         *    (https://github.com/rjanicek/vice.js)
-         *    Detected via Emscripten Module with VICE ccall exports
-         *
-         * 3. ts-emu-c64 — TypeScript, text-mode only (simplest integration)
-         *    (https://github.com/davervw/ts-emu-c64)
-         *
-         * 4. Generic — any emulator exposing window.C64 / window.c64js
+         * Fallback: VICE.js (Emscripten) or generic C64 libraries
          */
-        const C64Lib = window.C64 || window.Viciious || window.c64js || window.c64wasm;
-
-        /* Check for VICE.js (Emscripten Module with ccall) */
+        const ViciousLib = window.ViciousC64;
+        const C64Lib = window.C64 || window.c64js || window.c64wasm;
         const viceModule = window.Module && typeof window.Module.ccall === "function"
             ? window.Module : null;
 
-        if (viceModule) {
+        if (ViciousLib && typeof ViciousLib.create === "function") {
+            await this._bootViciious(ViciousLib, config);
+        } else if (viceModule) {
             await this._bootVICE(viceModule, config);
         } else if (C64Lib) {
-            await this._bootReal(C64Lib, config);
+            await this._bootGeneric(C64Lib, config);
         } else {
             console.warn("Commodore 64 emulator library not found — running in demo mode.");
-            console.info(
-                "To use a real emulator, include one of:\n" +
-                "  - Viciious (https://github.com/luxocrates/viciious) — pure JS, public domain\n" +
-                "  - VICE.js  (https://github.com/rjanicek/vice.js) — full VICE accuracy\n" +
-                "  - c64js    (https://c64js.github.io/) — lightweight\n" +
-                "Load the library and expose it as window.C64, window.Viciious, or Emscripten Module."
-            );
             this._bootDemo(config);
         }
     }
 
     /**
+     * Boot using Viciious (pure JS, public domain C64 emulator).
+     * ROMs (BASIC, Kernal, Character) are assembled at runtime from source.
+     * No external ROM files needed.
+     */
+    async _bootViciious(Lib, config) {
+        console.log("Booting Viciious C64 emulator...");
+        this._c64 = Lib.create();
+        this._emu = this._c64;
+        this._mem = { read: addr => this._c64.ram.readRam(addr) };
+
+        /* Start the emulator run loop */
+        this._c64.runloop.run();
+
+        /* Wait for BASIC to boot (~2 seconds) then load disk if provided */
+        await new Promise(r => setTimeout(r, 2000));
+
+        /* If a disk URL is provided, try to load it */
+        if (config.diskUrl && !config.diskBuffer) {
+            try {
+                const resp = await fetch(config.diskUrl);
+                if (resp.ok) {
+                    config.diskBuffer = await resp.arrayBuffer();
+                }
+            } catch(e) {
+                console.warn("Could not fetch disk image:", config.diskUrl, e);
+            }
+        }
+
+        /* Load .prg or .d64 data if available */
+        if (config.diskBuffer && this._c64.runloop && this._c64.runloop.ingest) {
+            const filename = config.filename || "game.prg";
+            this._c64.runloop.ingest(filename, new Uint8Array(config.diskBuffer));
+        }
+
+        console.log("Viciious C64 ready — screen at $0400, type via runloop.type()");
+    }
+
+    /**
      * Boot using VICE.js (Emscripten build of VICE).
-     * VICE exposes ccall for keyboard_key_pressed/released and
-     * the full 64KB RAM is inside the WASM heap.
      */
     async _bootVICE(mod, config) {
         this._viceModule = mod;
         this._emu = mod;
 
-        /* For VICE.js, RAM is inside the Emscripten HEAPU8 at an internal offset.
-         * We use ccall to read memory if a mem_read function is exported,
-         * otherwise fall back to screen polling. */
         if (typeof mod.ccall === "function") {
             this._mem = {
                 read: addr => {
@@ -172,7 +197,6 @@ export class C64Emulator extends EmulatorShim {
             };
         }
 
-        /* Load disk image if provided */
         if (config.diskUrl || config.diskBuffer) {
             try {
                 if (config.diskUrl && typeof mod.ccall === "function") {
@@ -186,17 +210,12 @@ export class C64Emulator extends EmulatorShim {
         }
     }
 
-    async _bootReal(Lib, config) {
+    async _bootGeneric(Lib, config) {
         const container = document.getElementById("v86-screen-container");
         this._canvas = container ? container.querySelector("canvas") : null;
 
         const emuConfig = {
             canvas: this._canvas,
-            rom: {
-                basic:  config.basicRom  || "basic.rom",
-                kernal: config.kernalRom || "kernal.rom",
-                chargen: config.chargenRom || "chargen.rom",
-            },
             disk: config.diskUrl || config.diskBuffer,
         };
 
@@ -207,12 +226,6 @@ export class C64Emulator extends EmulatorShim {
         }
 
         if (this._emu) {
-            /*
-             * Memory access priority:
-             * - Viciious: internal RAM array accessible via JS scope
-             * - ts-emu-c64: direct TypeScript array (this._emu.memory)
-             * - generic: emu.ram or emu.cpu.read(addr)
-             */
             this._mem = this._emu.ram || this._emu.memory || null;
             if (!this._mem && this._emu.cpu) {
                 this._mem = { read: addr => this._emu.cpu.read(addr) };
@@ -318,19 +331,24 @@ export class C64Emulator extends EmulatorShim {
             this._demoType(ch);
             return;
         }
+
+        /* Viciious: use runloop.type() to inject into KERNAL keyboard buffer */
+        if (this._c64 && this._c64.runloop && this._c64.runloop.type) {
+            try {
+                /* Convert to uppercase for C64 default charset */
+                this._c64.runloop.type(ch.toUpperCase());
+            } catch(e) {
+                /* Buffer full — retry on next tick */
+                setTimeout(() => this._sendChar(ch), 50);
+            }
+            return;
+        }
+
         if (!this._emu) return;
 
-        /* Convert ASCII char to PETSCII and queue it */
         let petscii = ch.charCodeAt(0);
-        /* Convert lowercase to uppercase PETSCII (C64 default charset) */
         if (petscii >= 0x61 && petscii <= 0x7A) petscii -= 0x20;
 
-        /*
-         * Input priority:
-         * 1. VICE.js ccall — keyboard_key_pressed / keyboard_key_released
-         * 2. Generic emulator keyboard handler
-         * 3. Queue / type methods
-         */
         if (this._viceModule && typeof this._viceModule.ccall === "function") {
             this._viceKeyPress(petscii);
         } else if (this._emu.keyboard && this._emu.keyboard.keyDown) {
@@ -350,6 +368,21 @@ export class C64Emulator extends EmulatorShim {
             else if (name === "Backspace") this._demoBackspace();
             return;
         }
+
+        /* Viciious: special keys via runloop.type() using PETSCII codes */
+        if (this._c64 && this._c64.runloop && this._c64.runloop.type) {
+            const petsciiSpecial = {
+                "Enter": "\r",
+                "Backspace": "\x14",  /* INST/DEL */
+            };
+            if (petsciiSpecial[name]) {
+                try {
+                    this._c64.runloop.type(petsciiSpecial[name]);
+                } catch(e) {}
+                return;
+            }
+        }
+
         if (!this._emu) return;
 
         const code = KEY_MAP[name];
@@ -427,9 +460,13 @@ export class C64Emulator extends EmulatorShim {
     /* ── Cleanup ── */
 
     _destroy() {
+        if (this._c64 && this._c64.runloop && this._c64.runloop.stop) {
+            this._c64.runloop.stop();
+        }
         if (this._emu && this._emu.stop) this._emu.stop();
         if (this._emu && this._emu.destroy) this._emu.destroy();
         this._emu = null;
+        this._c64 = null;
         this._mem = null;
     }
 }
