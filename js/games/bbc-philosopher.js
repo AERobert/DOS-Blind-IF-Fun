@@ -1,6 +1,6 @@
 export default {
     platform: "bbc",
-    filename: "philosopher-bbc.ssd",
+    filename: "PhilosophersQuest.ssd",
     label: "Philosopher's Quest (BBC)",
     autorun: "",
     prompt: ">",

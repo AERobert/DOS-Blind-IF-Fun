@@ -1,6 +1,6 @@
 export default {
     platform: "bbc",
-    filename: "colossal-bbc.ssd",
+    filename: "ColossalAdventure.ssd",
     label: "Colossal Adventure (BBC)",
     autorun: "",           /* BBC games auto-boot with Shift+Break */
     prompt: ">",

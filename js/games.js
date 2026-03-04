@@ -183,21 +183,19 @@ const PLATFORM_LABELS = {
 const PLATFORM_DESCRIPTIONS = {
     apple2: "<strong>Apple II</strong> &mdash; 40x24 text screen. " +
         "Reads text from screen memory at $0400-$07FF (interleaved row layout). " +
-        "Requires apple2js library (<a href='https://github.com/whscullin/apple2js' target='_blank'>github.com/whscullin/apple2js</a>). " +
+        "Emulator: apple2js (bundled, 614KB). " +
         "Disk formats: .dsk, .do, .po, .woz, .nib. " +
-        "Without the library, runs in demo mode to test the text extraction pipeline. " +
         "Classic games: Zork, Hitchhiker's Guide, Planetfall, Enchanter.",
     c64: "<strong>Commodore 64</strong> &mdash; 40x25 text screen. " +
         "Reads PETSCII screen codes from $0400-$07E7. " +
-        "Supports Viciious (<a href='https://github.com/luxocrates/viciious' target='_blank'>pure JS, public domain</a>) " +
-        "or VICE.js (<a href='https://github.com/rjanicek/vice.js' target='_blank'>full VICE accuracy</a>). " +
+        "Emulator: Viciious (bundled, 249KB, public domain). " +
         "Disk formats: .d64, .t64, .prg. " +
-        "Classic games: Zork, Hitchhiker's Guide, The Lurking Horror, Scott Adams adventures.",
+        "Classic games: Zork, Hitchhiker's Guide, The Lurking Horror.",
     bbc: "<strong>BBC Micro</strong> &mdash; Mode 7 teletext (40x25) or bitmap text modes. " +
         "Reads from $7C00 (Mode 7) or hooks OSWRCH ($FFEE) for bitmap modes. " +
-        "Requires jsbeeb (<a href='https://github.com/mattgodbolt/jsbeeb' target='_blank'>github.com/mattgodbolt/jsbeeb</a>). " +
+        "Emulator: jsbeeb (bundled, 294KB). " +
         "Disk formats: .ssd, .dsd, .uef. " +
-        "Classic games: Colossal Adventure, Acheton, Philosopher's Quest.",
+        "Classic games: Colossal Adventure, Acheton, Giant Killer, Quondam.",
 };
 
 function onPlatformChange() {

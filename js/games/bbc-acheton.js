@@ -1,6 +1,6 @@
 export default {
     platform: "bbc",
-    filename: "acheton-bbc.ssd",
+    filename: "Acheton.ssd",
     label: "Acheton (BBC)",
     autorun: "",
     prompt: ">",
