@@ -1,0 +1,172 @@
+Third-Party Software Licenses
+==============================
+
+This project bundles several third-party libraries.  Each is listed
+below with its license type, copyright holder, and the license text
+(or a summary where the full text would be redundant).
+
+The project's own code is MIT-licensed (see LICENSE).
+
+
+────────────────────────────────────────────────────────────────────────
+1.  v86  —  x86 PC emulator in JavaScript / WebAssembly
+    Files:  libv86.js, v86.wasm
+    Source: https://github.com/copy/v86
+    License: BSD-2-Clause
+────────────────────────────────────────────────────────────────────────
+
+Copyright (c) the v86 contributors.
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+
+1. Redistributions of source code must retain the above copyright
+   notice, this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright
+   notice, this list of conditions and the following disclaimer in the
+   documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+"AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT
+HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+
+────────────────────────────────────────────────────────────────────────
+2.  fflate  —  fast JavaScript compression library
+    Files:  lib/fflate.min.js
+    Source: https://github.com/101arrowz/fflate
+    License: MIT
+────────────────────────────────────────────────────────────────────────
+
+Copyright (c) Arjun Barrett
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────────
+3.  apple2js  —  Apple IIe emulator in TypeScript
+    Files:  lib/apple2/apple2-lib.bundle.js
+    Source: https://github.com/whscullin/apple2js
+    License: MIT
+────────────────────────────────────────────────────────────────────────
+
+Copyright (c) 2010-2021 Will Scullin and contributors
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of this software and associated documentation files (the
+"Software"), to deal in the Software without restriction, including
+without limitation the rights to use, copy, modify, merge, publish,
+distribute, sublicense, and/or sell copies of the Software, and to
+permit persons to whom the Software is furnished to do so, subject to
+the following conditions:
+
+The above copyright notice and this permission notice shall be included
+in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+
+────────────────────────────────────────────────────────────────────────
+4.  Viciious  —  Commodore 64 emulator in JavaScript
+    Files:  lib/c64/viciious-lib.js
+    Source: https://github.com/luxocrates/viciious
+    Author: Mike Dean (luxocrates)
+    License: Public Domain
+────────────────────────────────────────────────────────────────────────
+
+The emulation code and UI assets in Viciious were authored from scratch
+and placed in the public domain by the author.
+
+No copyright is claimed and no attribution is required.  This credit
+is included as a courtesy.
+
+Note: The original repository's rom/ directory, Wolfgang Lorenz test
+suite, and demo programs are derived from works by other authors and
+are NOT public domain.  Those files are not included in this project;
+the Viciious library build assembles its own ROMs at runtime from
+original 6502 assembly source.
+
+
+────────────────────────────────────────────────────────────────────────
+5.  jsbeeb  —  BBC Micro emulator in JavaScript
+    Files:  lib/jsbeeb/jsbeeb-lib.js, lib/jsbeeb/roms/
+    Source: https://github.com/mattgodbolt/jsbeeb
+    Author: Matt Godbolt and contributors
+    License: GPL-3.0-or-later
+────────────────────────────────────────────────────────────────────────
+
+IMPORTANT — LICENSE COMPATIBILITY NOTE:
+
+jsbeeb is licensed under the GNU General Public License, version 3 (or
+later).  GPL-3.0 is a copyleft license: it requires that derivative
+works also be distributed under GPL-3.0.
+
+This project's own code is MIT-licensed.  The jsbeeb library is loaded
+as a separate, independent script file — it is not compiled into or
+linked with the MIT-licensed code.  Under the GPL's "mere aggregation"
+provision (GPL-3.0, Section 5), distributing independent programs
+together does not require the non-GPL program to adopt the GPL.
+
+However, if you modify the jsbeeb library itself or create a combined
+work that links with jsbeeb internals at the source level, the GPL-3.0
+terms apply to the combined work.
+
+The jsbeeb files included here (jsbeeb-lib.js and the ROM files) are
+distributed under the terms of the GPL-3.0.  The full GPL-3.0 text is
+available at: https://www.gnu.org/licenses/gpl-3.0.txt
+
+Copyright (C) Matt Godbolt and contributors.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful, but
+WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+General Public License for more details.
+
+The BBC Micro ROM files (OS, BASIC, DFS) included in lib/jsbeeb/roms/
+are copyright Acorn Computers Ltd and are included for emulation
+purposes consistent with their long-standing availability in the BBC
+Micro preservation community.
+
+Additional credits from the jsbeeb project:
+  - Inspired by Sarah Walker's B-Em emulator
+  - Contributors: Richard Talbot-Watkins, Michael Borcherds,
+    David Banks (hoglet), Ed Spittles, Chris Jordan, and others
