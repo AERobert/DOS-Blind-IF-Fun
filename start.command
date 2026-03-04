@@ -71,6 +71,25 @@ if [ "$NEED_DOWNLOAD" = "1" ]; then
     download "https://cdn.jsdelivr.net/npm/fflate@0.8.2/umd/index.js" \
              "lib/fflate.min.js"
 
+    # jsbeeb (BBC Micro emulator) — custom IIFE bundle + ROMs
+    GHRAW="https://raw.githubusercontent.com/AERobert/DOS-Blind-IF-Fun/main"
+    download "$GHRAW/lib/jsbeeb/jsbeeb-lib.js" \
+             "lib/jsbeeb/jsbeeb-lib.js"
+    download "$GHRAW/lib/jsbeeb/roms/os.rom" \
+             "lib/jsbeeb/roms/os.rom"
+    download "$GHRAW/lib/jsbeeb/roms/BASIC.ROM" \
+             "lib/jsbeeb/roms/BASIC.ROM"
+    download "$GHRAW/lib/jsbeeb/roms/b/DFS-1.2.rom" \
+             "lib/jsbeeb/roms/b/DFS-1.2.rom"
+
+    # apple2js (Apple II emulator) — custom webpack bundle
+    download "$GHRAW/lib/apple2/apple2-lib.bundle.js" \
+             "lib/apple2/apple2-lib.bundle.js"
+
+    # Viciious (Commodore 64 emulator) — custom bundle
+    download "$GHRAW/lib/c64/viciious-lib.js" \
+             "lib/c64/viciious-lib.js"
+
     echo ""
 fi
 
