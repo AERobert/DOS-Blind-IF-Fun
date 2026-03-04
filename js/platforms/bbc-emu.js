@@ -154,6 +154,11 @@ export class BBCEmulator extends EmulatorShim {
     async _bootJsbeeb(Lib, config) {
         console.log("Booting jsbeeb BBC Micro emulator...");
 
+        /* Tell jsbeeb where to find ROM files (OS, BASIC, DFS) */
+        if (Lib.utils && typeof Lib.utils.setBaseUrl === "function") {
+            Lib.utils.setBaseUrl("lib/jsbeeb/");
+        }
+
         /* Get or create a canvas */
         const container = document.getElementById("v86-screen-container");
         this._canvas = container ? container.querySelector("canvas") : null;

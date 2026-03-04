@@ -167,7 +167,7 @@ customImgInput.addEventListener("change", function() {
 const platformSelect = document.getElementById("platform-select");
 
 const PLATFORM_DISK_PATHS = {
-    dos:    ["gameDisks/", ""],
+    dos:    ["gameDisks/dos/", "gameDisks/", ""],
     apple2: ["gameDisks/apple2/", "gameDisks/", ""],
     c64:    ["gameDisks/c64/", "gameDisks/", ""],
     bbc:    ["gameDisks/bbc/", "gameDisks/", ""],

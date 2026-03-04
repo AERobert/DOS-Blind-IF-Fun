@@ -142,7 +142,7 @@ download "https://archive.org/download/d64_Lurking_Horror_The_1987_Infocom/Lurki
 echo ""
 
 # ── Count available games ────────────────────────────────────────
-DOS_COUNT=$(ls gameDisks/*.img 2>/dev/null | wc -l)
+DOS_COUNT=$(ls gameDisks/dos/*.img 2>/dev/null | wc -l)
 BBC_COUNT=$(ls gameDisks/bbc/*.ssd 2>/dev/null | wc -l)
 A2_COUNT=$(ls gameDisks/apple2/*.dsk 2>/dev/null | wc -l)
 C64_COUNT=$(ls gameDisks/c64/*.d64 2>/dev/null | wc -l)
