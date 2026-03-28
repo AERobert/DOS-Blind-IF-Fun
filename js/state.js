@@ -10,6 +10,7 @@ export const $ = id => document.getElementById(id);
  */
 export const state = {
     emulator: null, screenBuffer: [], prevLines: [],
+    currentPlatform: "dos",  /* "dos" | "apple2" | "c64" | "bbc" */
     isReady: false, refreshTimer: null,
     commandHistory: [], historyIndex: -1,
     pendingChanges: [], lastResponseLines: [],
